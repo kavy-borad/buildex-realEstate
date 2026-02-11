@@ -1,0 +1,525 @@
+{
+    "info": {
+        "name": "Buildex Quotation API",
+        "description": "Complete API collection for Quotation Management System",
+        "version": "1.0.0",
+        "baseUrl": "http://localhost:5000"
+    },
+    "endpoints": [
+        {
+            "name": "1. Create New Quotation",
+            "method": "POST",
+            "url": "http://localhost:5000/api/quotations",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "clientDetails": {
+                    "name": "Rajesh Kumar",
+                    "phone": "+91 9876543210",
+                    "email": "rajesh.kumar@example.com",
+                    "siteAddress": "Plot No. 45, Sector 12, Navi Mumbai, Maharashtra - 400706"
+                },
+                "projectDetails": {
+                    "projectType": "Residential - Villa",
+                    "builtUpArea": 3500,
+                    "areaUnit": "Sq.ft",
+                    "location": "Navi Mumbai",
+                    "constructionQuality": "premium"
+                },
+                "costItems": [
+                    {
+                        "itemName": "Excavation & Earth Work",
+                        "quantity": 1,
+                        "unit": "Lump Sum",
+                        "rate": 250000,
+                        "total": 250000
+                    },
+                    {
+                        "itemName": "Foundation Work (RCC)",
+                        "quantity": 1,
+                        "unit": "Lump Sum",
+                        "rate": 850000,
+                        "total": 850000
+                    },
+                    {
+                        "itemName": "Structural Work - Columns & Beams",
+                        "quantity": 3500,
+                        "unit": "Sq.ft",
+                        "rate": 450,
+                        "total": 1575000
+                    },
+                    {
+                        "itemName": "Brick Masonry Work",
+                        "quantity": 3500,
+                        "unit": "Sq.ft",
+                        "rate": 180,
+                        "total": 630000
+                    },
+                    {
+                        "itemName": "Plastering (Internal & External)",
+                        "quantity": 7000,
+                        "unit": "Sq.ft",
+                        "rate": 85,
+                        "total": 595000
+                    },
+                    {
+                        "itemName": "Flooring - Vitrified Tiles",
+                        "quantity": 3500,
+                        "unit": "Sq.ft",
+                        "rate": 120,
+                        "total": 420000
+                    },
+                    {
+                        "itemName": "Doors & Windows",
+                        "quantity": 18,
+                        "unit": "Nos",
+                        "rate": 35000,
+                        "total": 630000
+                    },
+                    {
+                        "itemName": "Electrical Work (Complete)",
+                        "quantity": 1,
+                        "unit": "Lump Sum",
+                        "rate": 450000,
+                        "total": 450000
+                    },
+                    {
+                        "itemName": "Plumbing & Sanitary Work",
+                        "quantity": 1,
+                        "unit": "Lump Sum",
+                        "rate": 380000,
+                        "total": 380000
+                    },
+                    {
+                        "itemName": "Painting (Premium Quality)",
+                        "quantity": 7000,
+                        "unit": "Sq.ft",
+                        "rate": 45,
+                        "total": 315000
+                    }
+                ],
+                "summary": {
+                    "subtotal": 6095000,
+                    "gstPercentage": 18,
+                    "gstAmount": 1097100,
+                    "discount": 100000,
+                    "grandTotal": 7092100
+                },
+                "validTill": "2026-03-06T00:00:00.000Z"
+            },
+            "expectedResponse": {
+                "status": 201,
+                "body": {
+                    "_id": "65f9abc123def456789",
+                    "client": "65f8xyz987abc123456",
+                    "projectDetails": {
+                        "projectType": "Residential - Villa",
+                        "builtUpArea": 3500,
+                        "areaUnit": "Sq.ft",
+                        "location": "Navi Mumbai",
+                        "constructionQuality": "premium"
+                    },
+                    "costItems": "... array of items ...",
+                    "summary": {
+                        "subtotal": 6095000,
+                        "gstPercentage": 18,
+                        "gstAmount": 1097100,
+                        "discount": 100000,
+                        "grandTotal": 7092100
+                    },
+                    "status": "draft",
+                    "quotationDate": "2026-02-04T04:34:54.123Z",
+                    "validTill": "2026-03-06T00:00:00.000Z",
+                    "createdAt": "2026-02-04T04:34:54.123Z",
+                    "updatedAt": "2026-02-04T04:34:54.123Z"
+                }
+            }
+        },
+        {
+            "name": "2. Get All Quotations",
+            "method": "GET",
+            "url": "http://localhost:5000/api/quotations",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "queryParams": {
+                "optional": {
+                    "status": "draft",
+                    "startDate": "2026-01-01",
+                    "endDate": "2026-12-31"
+                }
+            },
+            "exampleUrls": [
+                "http://localhost:5000/api/quotations",
+                "http://localhost:5000/api/quotations?status=draft",
+                "http://localhost:5000/api/quotations?status=sent",
+                "http://localhost:5000/api/quotations?startDate=2026-02-01"
+            ],
+            "expectedResponse": {
+                "status": 200,
+                "body": [
+                    {
+                        "_id": "65f9abc123def456789",
+                        "client": {
+                            "_id": "65f8xyz987abc123456",
+                            "name": "Rajesh Kumar",
+                            "phone": "+91 9876543210"
+                        },
+                        "projectDetails": {
+                            "projectType": "Residential - Villa",
+                            "location": "Navi Mumbai"
+                        },
+                        "summary": {
+                            "grandTotal": 7092100
+                        },
+                        "status": "draft",
+                        "createdAt": "2026-02-04T04:34:54.123Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "3. Get Single Quotation by ID",
+            "method": "GET",
+            "url": "http://localhost:5000/api/quotations/:id",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "urlParams": {
+                "id": "65f9abc123def456789"
+            },
+            "exampleUrl": "http://localhost:5000/api/quotations/65f9abc123def456789",
+            "expectedResponse": {
+                "status": 200,
+                "body": {
+                    "_id": "65f9abc123def456789",
+                    "client": {
+                        "_id": "65f8xyz987abc123456",
+                        "name": "Rajesh Kumar",
+                        "email": "rajesh.kumar@example.com",
+                        "phone": "+91 9876543210",
+                        "address": "Plot No. 45, Sector 12, Navi Mumbai"
+                    },
+                    "projectDetails": {
+                        "projectType": "Residential - Villa",
+                        "builtUpArea": 3500,
+                        "areaUnit": "Sq.ft",
+                        "location": "Navi Mumbai",
+                        "constructionQuality": "premium"
+                    },
+                    "costItems": [
+                        {
+                            "itemName": "Foundation Work",
+                            "quantity": 1,
+                            "unit": "Lump Sum",
+                            "rate": 850000,
+                            "total": 850000
+                        }
+                    ],
+                    "summary": {
+                        "subtotal": 6095000,
+                        "gstPercentage": 18,
+                        "gstAmount": 1097100,
+                        "discount": 100000,
+                        "grandTotal": 7092100
+                    },
+                    "status": "draft",
+                    "quotationDate": "2026-02-04T04:34:54.123Z",
+                    "validTill": "2026-03-06T00:00:00.000Z",
+                    "createdAt": "2026-02-04T04:34:54.123Z",
+                    "updatedAt": "2026-02-04T04:34:54.123Z"
+                }
+            },
+            "errorResponse": {
+                "status": 404,
+                "body": {
+                    "message": "Quotation not found"
+                }
+            }
+        },
+        {
+            "name": "4. Update Quotation",
+            "method": "PUT",
+            "url": "http://localhost:5000/api/quotations/:id",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "urlParams": {
+                "id": "65f9abc123def456789"
+            },
+            "body": {
+                "projectDetails": {
+                    "projectType": "Commercial - Office",
+                    "builtUpArea": 4000,
+                    "areaUnit": "Sq.ft",
+                    "location": "Pune",
+                    "constructionQuality": "premium"
+                },
+                "summary": {
+                    "subtotal": 7200000,
+                    "gstPercentage": 18,
+                    "gstAmount": 1296000,
+                    "discount": 150000,
+                    "grandTotal": 8346000
+                }
+            },
+            "exampleUrl": "http://localhost:5000/api/quotations/65f9abc123def456789",
+            "expectedResponse": {
+                "status": 200,
+                "body": {
+                    "_id": "65f9abc123def456789",
+                    "projectDetails": {
+                        "projectType": "Commercial - Office",
+                        "builtUpArea": 4000,
+                        "areaUnit": "Sq.ft",
+                        "location": "Pune",
+                        "constructionQuality": "premium"
+                    },
+                    "summary": {
+                        "grandTotal": 8346000
+                    },
+                    "updatedAt": "2026-02-04T05:12:30.456Z"
+                }
+            }
+        },
+        {
+            "name": "5. Update Quotation Status",
+            "method": "PATCH",
+            "url": "http://localhost:5000/api/quotations/:id/status",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "urlParams": {
+                "id": "65f9abc123def456789"
+            },
+            "body": {
+                "status": "sent"
+            },
+            "exampleUrl": "http://localhost:5000/api/quotations/65f9abc123def456789/status",
+            "validStatuses": [
+                "draft",
+                "sent",
+                "negotiation",
+                "approved",
+                "rejected",
+                "completed"
+            ],
+            "examples": [
+                {
+                    "description": "Mark as Sent to Client",
+                    "body": {
+                        "status": "sent"
+                    }
+                },
+                {
+                    "description": "Mark as Approved",
+                    "body": {
+                        "status": "approved"
+                    }
+                },
+                {
+                    "description": "Mark as Rejected",
+                    "body": {
+                        "status": "rejected"
+                    }
+                }
+            ],
+            "expectedResponse": {
+                "status": 200,
+                "body": {
+                    "_id": "65f9abc123def456789",
+                    "status": "sent",
+                    "updatedAt": "2026-02-04T05:20:15.789Z"
+                }
+            }
+        },
+        {
+            "name": "6. Delete Quotation",
+            "method": "DELETE",
+            "url": "http://localhost:5000/api/quotations/:id",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "urlParams": {
+                "id": "65f9abc123def456789"
+            },
+            "exampleUrl": "http://localhost:5000/api/quotations/65f9abc123def456789",
+            "expectedResponse": {
+                "status": 200,
+                "body": {
+                    "success": true,
+                    "message": "Quotation deleted successfully"
+                }
+            },
+            "errorResponse": {
+                "status": 404,
+                "body": {
+                    "message": "Quotation not found"
+                }
+            }
+        },
+        {
+            "name": "7. Get Quotation Statistics",
+            "method": "GET",
+            "url": "http://localhost:5000/api/quotations/stats",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "description": "Get dashboard statistics for all quotations",
+            "expectedResponse": {
+                "status": 200,
+                "body": {
+                    "total": 42,
+                    "draft": 15,
+                    "sent": 18,
+                    "approved": 7,
+                    "rejected": 2,
+                    "totalValue": 125000000
+                }
+            }
+        }
+    ],
+    "sampleDataSets": {
+        "smallProject": {
+            "clientDetails": {
+                "name": "Amit Sharma",
+                "phone": "+91 9123456789",
+                "email": "amit.sharma@gmail.com",
+                "siteAddress": "B-102, Green Valley, Pune - 411014"
+            },
+            "projectDetails": {
+                "projectType": "Renovation",
+                "builtUpArea": 1200,
+                "areaUnit": "Sq.ft",
+                "location": "Pune",
+                "constructionQuality": "standard"
+            },
+            "costItems": [
+                {
+                    "itemName": "Demolition Work",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 80000,
+                    "total": 80000
+                },
+                {
+                    "itemName": "New Wall Construction",
+                    "quantity": 200,
+                    "unit": "Sq.ft",
+                    "rate": 150,
+                    "total": 30000
+                },
+                {
+                    "itemName": "Flooring Replacement",
+                    "quantity": 1200,
+                    "unit": "Sq.ft",
+                    "rate": 95,
+                    "total": 114000
+                },
+                {
+                    "itemName": "Painting",
+                    "quantity": 2400,
+                    "unit": "Sq.ft",
+                    "rate": 35,
+                    "total": 84000
+                },
+                {
+                    "itemName": "Electrical Rewiring",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 120000,
+                    "total": 120000
+                }
+            ],
+            "summary": {
+                "subtotal": 428000,
+                "gstPercentage": 18,
+                "gstAmount": 77040,
+                "discount": 5000,
+                "grandTotal": 500040
+            }
+        },
+        "largeCommercialProject": {
+            "clientDetails": {
+                "name": "TechCorp Solutions Pvt Ltd",
+                "phone": "+91 8765432109",
+                "email": "projects@techcorp.com",
+                "siteAddress": "IT Park, Phase 2, Hinjewadi, Pune - 411057"
+            },
+            "projectDetails": {
+                "projectType": "Commercial - Office",
+                "builtUpArea": 12000,
+                "areaUnit": "Sq.ft",
+                "location": "Pune - Hinjewadi",
+                "constructionQuality": "premium"
+            },
+            "costItems": [
+                {
+                    "itemName": "Foundation & Structural Work",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 5500000,
+                    "total": 5500000
+                },
+                {
+                    "itemName": "RCC Frame Structure",
+                    "quantity": 12000,
+                    "unit": "Sq.ft",
+                    "rate": 650,
+                    "total": 7800000
+                },
+                {
+                    "itemName": "Glass Facade Work",
+                    "quantity": 4000,
+                    "unit": "Sq.ft",
+                    "rate": 450,
+                    "total": 1800000
+                },
+                {
+                    "itemName": "Interior Fit-outs (Premium)",
+                    "quantity": 12000,
+                    "unit": "Sq.ft",
+                    "rate": 850,
+                    "total": 10200000
+                },
+                {
+                    "itemName": "HVAC System Installation",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 3200000,
+                    "total": 3200000
+                },
+                {
+                    "itemName": "Electrical & IT Infrastructure",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 2800000,
+                    "total": 2800000
+                },
+                {
+                    "itemName": "Fire Safety Systems",
+                    "quantity": 1,
+                    "unit": "Lump Sum",
+                    "rate": 1500000,
+                    "total": 1500000
+                }
+            ],
+            "summary": {
+                "subtotal": 32800000,
+                "gstPercentage": 18,
+                "gstAmount": 5904000,
+                "discount": 500000,
+                "grandTotal": 38204000
+            }
+        }
+    },
+    "testingInstructions": {
+        "step1": "Ensure MongoDB is running on localhost:27017",
+        "step2": "Start backend server: cd backend && npm run dev",
+        "step3": "Use Postman, Thunder Client, or curl to test endpoints",
+        "step4": "Start with creating a quotation (endpoint #1)",
+        "step5": "Copy the returned _id for subsequent tests",
+        "step6": "Test other endpoints using the copied _id"
+    }
+}
