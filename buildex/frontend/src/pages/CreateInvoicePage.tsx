@@ -25,7 +25,8 @@ export default function CreateInvoicePage() {
 
     const quotation = quotationId ? getQuotation(quotationId) : undefined;
 
-    // ... (rest of code)
+    const [dueDate, setDueDate] = useState('');
+    const [note, setNotes] = useState('');
 
     // Handle create invoice
     const handleCreateInvoice = async () => {
@@ -71,7 +72,7 @@ export default function CreateInvoicePage() {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="min-h-screen px-6 py-4 bg-background/50"
+            className="min-h-screen px-4 md:px-6 py-4 bg-background/50"
         >
             {/* Header */}
             <div className="max-w-4xl mx-auto space-y-6">

@@ -12,6 +12,8 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import publicQuotationRoutes from './routes/publicQuotationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
+import pdfRoutes from './routes/pdfRoutes.js';
 
 dotenv.config();
 
@@ -42,6 +44,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/public/quotation', publicQuotationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api', feedbackRoutes);
+app.use('/api/pdf', pdfRoutes); // PDF Generation Routes
 
 // Connect to DB and Start Server
 connectDB()

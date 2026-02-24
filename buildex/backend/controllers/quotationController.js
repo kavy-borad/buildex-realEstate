@@ -208,6 +208,14 @@ export const getQuotationById = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching quotation:', error);
+
+        if (error.name === 'CastError') {
+            return res.status(404).json({
+                success: false,
+                message: 'Quotation not found (Invalid ID)'
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Failed to fetch quotation',

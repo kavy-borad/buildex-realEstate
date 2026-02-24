@@ -38,7 +38,7 @@ export function AdminLayout() {
       <main
         className="hidden lg:block transition-all duration-300 pt-14 pb-6"
         style={{
-          marginLeft: isExpanded ? 280 : 88,
+          marginLeft: isExpanded ? 240 : 88,
         }}
       >
         <Outlet />

@@ -1,4 +1,4 @@
-import { LogOut, User, ChevronDown } from 'lucide-react';
+import { LogOut, User, ChevronDown, Home, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -51,24 +51,33 @@ export function Navbar({ sidebarOpen }: NavbarProps) {
   return (
     <header
       className="hidden lg:flex fixed top-0 right-0 h-14 bg-card/80 backdrop-blur-md z-20 items-center justify-between px-6 transition-all duration-200 shadow-sm"
-      style={{ left: sidebarOpen ? 280 : 88 }}
+      style={{ left: sidebarOpen ? 240 : 88 }}
     >
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {breadcrumbs.map((crumb, index) => (
-          <div key={crumb.path} className="flex items-center gap-2">
-            {index > 0 && <span className="text-border">/</span>}
-            <Link
-              to={crumb.path}
-              className={cn(
-                "hover:text-primary transition-colors capitalize",
-                index === breadcrumbs.length - 1 ? "text-foreground font-medium" : ""
-              )}
-            >
-              {crumb.label}
-            </Link>
-          </div>
-        ))}
+      <div className="flex items-center gap-1.5 text-[15px] font-medium text-muted-foreground">
+        <Link to="/dashboard" className="flex items-center hover:text-primary transition-colors">
+          <Home className="w-[18px] h-[18px]" />
+        </Link>
+
+        {breadcrumbs.map((crumb, index) => {
+          // Skip showing "Dashboard" in the text since Home acts as the dashboard link
+          // But if you are on /dashboard, we still want to show "Dashboard" text after Home
+          // We'll just show it normally: `<Home> > Dashboard`
+          return (
+            <div key={crumb.path} className="flex items-center gap-1.5">
+              <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
+              <Link
+                to={crumb.path}
+                className={cn(
+                  "hover:text-primary transition-colors capitalize",
+                  index === breadcrumbs.length - 1 ? "text-foreground font-medium" : ""
+                )}
+              >
+                {crumb.label}
+              </Link>
+            </div>
+          );
+        })}
       </div>
 
       <DropdownMenu>

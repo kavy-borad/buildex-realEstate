@@ -1,0 +1,269 @@
+/* ============================================
+   QUOTATION PDF RESPONSIVE SCALING
+   Mobile & Tablet Only - Desktop Unchanged
+   ============================================ */
+
+/* Apply scaling ONLY on tablet and mobile */
+@media screen and (max-width: 1024px) {
+    #quotation-preview {
+        /* Scale down the entire quotation to fit screen */
+        transform-origin: top center;
+        transform: scale(0.75);
+        margin-bottom: -200px;
+        /* Compensate for scaled height */
+    }
+}
+
+@media screen and (max-width: 768px) {
+    #quotation-preview {
+        /* More aggressive scaling for mobile */
+        transform: scale(0.55);
+        margin-bottom: -400px;
+        /* Compensate for scaled height */
+    }
+
+    /* Reduce outer container padding on mobile */
+    .min-h-screen.bg-muted\/30 {
+        padding: 0.5rem !important;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    #quotation-preview {
+        /* Maximum scaling for very small phones */
+        transform: scale(0.45);
+        margin-bottom: -500px;
+    }
+}
+
+/* ============================================
+   FONT SIZE ADJUSTMENTS for Mobile/Tablet PDF
+   (Subtle reductions for better fit)
+   ============================================ */
+
+@media screen and (max-width: 1024px) {
+    #quotation-preview h1 {
+        font-size: 2rem !important;
+        /* Down from 2.25rem/text-4xl */
+    }
+
+    #quotation-preview h2 {
+        font-size: 1.5rem !important;
+        /* Down from 1.875rem/text-3xl */
+    }
+
+    #quotation-preview h3 {
+        font-size: 1rem !important;
+        /* Down from 1.125rem/text-lg */
+    }
+
+    #quotation-preview .text-lg {
+        font-size: 1rem !important;
+    }
+
+    #quotation-preview .text-base {
+        font-size: 0.875rem !important;
+    }
+
+    #quotation-preview table {
+        font-size: 0.875rem !important;
+    }
+
+}
+
+/* ============================================
+   GLOBAL TABLE LAYOUT (Applies to Desktop & Mobile)
+   ============================================ */
+#quotation-preview table th,
+#quotation-preview table td {
+    padding: 0.5rem 0.5rem !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+
+/* Item name - Flexible width */
+#quotation-preview table tbody td:first-child {
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
+    text-align: left !important;
+}
+
+/* Unit column */
+#quotation-preview table thead th:nth-child(2),
+#quotation-preview table tbody td:nth-child(2) {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+/* Qty Column - Increased width to push Rate right */
+#quotation-preview table thead th:nth-child(3),
+#quotation-preview table tbody td:nth-child(3) {
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+/* Rate Column */
+#quotation-preview table thead th:nth-child(4),
+#quotation-preview table tbody td:nth-child(4) {
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+    white-space: nowrap !important;
+    text-align: right !important;
+}
+
+/* Amount Column */
+#quotation-preview table thead th:nth-child(5),
+#quotation-preview table tbody td:nth-child(5) {
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    white-space: nowrap !important;
+    text-align: right !important;
+}
+
+
+
+/* ============================================
+   MARGIN & PADDING REDUCTIONS
+   Mobile/Tablet Only
+   ============================================ */
+
+@media screen and (max-width: 1024px) {
+    #quotation-preview>div {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    #quotation-preview .p-8,
+    #quotation-preview .p-12,
+    #quotation-preview .px-8,
+    #quotation-preview .px-12 {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    #quotation-preview .py-8,
+    #quotation-preview .py-12 {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    #quotation-preview>div {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    #quotation-preview .p-8,
+    #quotation-preview .p-12,
+    #quotation-preview .px-8,
+    #quotation-preview .px-12 {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    #quotation-preview .py-8,
+    #quotation-preview .py-12 {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+}
+
+/* ============================================
+   PRINT STYLES
+   Reset scaling for actual PDF printing
+   ============================================ */
+
+@media print {
+    #quotation-preview {
+        transform: scale(1) !important;
+        margin-bottom: 0 !important;
+    }
+}
+
+/* ============================================
+   PRINT OPTIMIZATION & PAGINATION RULES
+   ============================================ */
+@media print {
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+
+    body {
+        width: 210mm;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        background: white !important;
+    }
+
+    /* Reset Scaling Wrapper for Native Print Flow */
+    .origin-top {
+        transform: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    /* Table Pagination Logic */
+    table {
+        page-break-inside: auto;
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed !important;
+    }
+
+    thead {
+        display: table-header-group;
+        /* Repeats header on new pages */
+    }
+
+    tfoot {
+        display: table-footer-group;
+    }
+
+    tr {
+        page-break-inside: avoid;
+        /* Prevents splitting row content */
+        page-break-after: auto;
+    }
+
+    /* Ensure totals don't break */
+    .avoid-break {
+        page-break-inside: avoid;
+    }
+
+    /* Strict No-Wrap Enforcement for Print */
+    td,
+    th {
+        white-space: nowrap !important;
+    }
+
+    /* Item Description Specifics for Print */
+    #quotation-preview table tbody td:first-child {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+}

@@ -72,7 +72,7 @@ export default function InvoiceListPage() {
             initial="hidden"
             animate="visible"
             variants={containerVariants}
-            className="min-h-screen px-6 py-4 bg-background/50 space-y-6 max-w-[1600px] mx-auto w-full"
+            className="min-h-screen px-4 md:px-6 py-4 bg-background/50 space-y-6 max-w-[1600px] mx-auto w-full"
         >
             {/* Header */}
             <motion.div variants={itemVariants}>

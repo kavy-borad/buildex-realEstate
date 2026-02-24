@@ -5,7 +5,7 @@
  */
 
 import { Quotation } from '@/types/quotation';
-import { apiRequest, ApiResponse } from './core';
+import { apiRequest, apiDownload, ApiResponse } from './core';
 
 export interface ShareableLinkData {
     accessToken: string;
@@ -62,5 +62,20 @@ export const quotationApi = {
         }
 
         return response.data;
+    },
+
+    /**
+     * Download PDF (Server Side Generation)
+     */
+    downloadPdf: async (id: string): Promise<boolean> => {
+        return apiDownload(`/pdf/${id}/download`);
+    },
+
+    /**
+     * Preview PDF from Data (Server Side Generation)
+     * Useful for unsaved drafts
+     */
+    previewPdf: async (quotationData: Partial<Quotation>): Promise<boolean> => {
+        return apiDownload('/pdf/preview/download', 'Preview.pdf', 'POST', { previewData: quotationData });
     }
 };

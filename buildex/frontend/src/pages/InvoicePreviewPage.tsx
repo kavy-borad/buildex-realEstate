@@ -190,7 +190,7 @@ export default function InvoicePreviewPage() {
                     </div>
 
                     {/* Table */}
-                    <div className="mt-8 rounded-lg overflow-hidden border border-gray-100">
+                    <div className="mt-8 rounded-lg overflow-x-auto border border-gray-100">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-gray-600 font-medium">
                                 <tr>

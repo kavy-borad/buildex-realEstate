@@ -1,0 +1,2 @@
+Quotation ID: 699446507dab66dcdc01eb49
+PDF URL: http://localhost:5000/api/pdf/699446507dab66dcdc01eb49/download

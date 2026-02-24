@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { quotationApi } from '@/services/api/quotationApi';
+import { feedbackApi } from '@/services/api/feedbackApi';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 
@@ -34,21 +34,10 @@ export default function ClientFeedbackPage() {
     const fetchFeedback = async () => {
         try {
             setLoading(true);
-            // Fetch all quotations that have a client status other than pending/viewed
-            // Ideally backend should filter this, but for now we fetch and filter or update backend.
-            // We updated backend to support clientStatus filtering.
-
-            // We want everything that IS NOT pending or viewed. 
-            // Since our backend simple filter might not support "ne" (not equal), 
-            // we can fetch all and filter client-side, OR make multiple requests.
-            // Let's fetch all for now as the volume might not be huge yet.
-            const response = await quotationApi.getAll();
+            // Use the dedicated feedback API endpoint
+            const response = await feedbackApi.getAllWithFeedback();
             if (response.success && response.data) {
-                // Filter for relevant statuses
-                const feedbacks = response.data.filter((q: any) =>
-                    ['approved', 'rejected', 'changes-requested'].includes(q.clientStatus)
-                );
-                setQuotations(feedbacks);
+                setQuotations(response.data);
             }
         } catch (error) {
             console.error('Failed to fetch feedback', error);
@@ -78,42 +67,42 @@ export default function ClientFeedbackPage() {
     const filteredQuotations = quotations.filter(q => {
         const matchesFilter = filter === 'all' || q.clientStatus === filter;
         const matchesSearch =
-            q.clientDetails?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            q.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             q.quotationNumber?.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesFilter && matchesSearch;
     });
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-background">
+        <div className="px-4 md:px-6 py-4 max-w-[1600px] mx-auto min-h-screen bg-background w-full">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                    <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                         Client Feedback
                     </h1>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         Review and manage client responses to your quotations.
                     </p>
                 </div>
             </div>
 
             {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="relative flex-1 md:max-w-md">
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+                <div className="relative flex-1 md:max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                         placeholder="Search by client or quotation #"
-                        className="pl-9 bg-card"
+                        className="pl-9 bg-card h-9 text-sm"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
-                    <TabsList className="grid w-full grid-cols-4 md:w-auto">
-                        <TabsTrigger value="all">All</TabsTrigger>
-                        <TabsTrigger value="approved">Approved</TabsTrigger>
-                        <TabsTrigger value="changes-requested">Changes</TabsTrigger>
-                        <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-4 md:w-auto h-9">
+                        <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+                        <TabsTrigger value="approved" className="text-xs">Approved</TabsTrigger>
+                        <TabsTrigger value="changes-requested" className="text-xs">Changes</TabsTrigger>
+                        <TabsTrigger value="rejected" className="text-xs">Rejected</TabsTrigger>
                     </TabsList>
                 </Tabs>
             </div>
@@ -148,40 +137,40 @@ export default function ClientFeedbackPage() {
                                             quotation.clientStatus === 'rejected' ? '#ef4444' :
                                                 '#3b82f6'
                                 }}>
-                                    <div className="p-6">
-                                        <div className="flex flex-col lg:flex-row gap-6 justify-between">
+                                    <div className="p-4">
+                                        <div className="flex flex-col lg:flex-row gap-4 justify-between">
 
                                             {/* Left: Info */}
-                                            <div className="space-y-4 flex-1">
+                                            <div className="space-y-3 flex-1">
                                                 <div className="flex items-start justify-between">
                                                     <div>
-                                                        <div className="flex items-center gap-3 mb-1">
-                                                            <span className="font-mono text-sm text-muted-foreground">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="font-mono text-xs text-muted-foreground">
                                                                 #{quotation.quotationNumber}
                                                             </span>
-                                                            <Badge variant="outline" className={`gap-1.5 ${getStatusColor(quotation.clientStatus)}`}>
+                                                            <Badge variant="outline" className={`gap-1 px-2 py-0 h-5 text-xs ${getStatusColor(quotation.clientStatus)}`}>
                                                                 {getStatusIcon(quotation.clientStatus)}
                                                                 {quotation.clientStatus === 'changes-requested' ? 'Changes Requested' :
                                                                     quotation.clientStatus.charAt(0).toUpperCase() + quotation.clientStatus.slice(1)}
                                                             </Badge>
                                                         </div>
-                                                        <h3 className="text-xl font-bold text-foreground">
-                                                            {quotation.clientDetails?.name || 'Unknown Client'}
+                                                        <h3 className="text-lg font-bold text-foreground">
+                                                            {quotation.client?.name || 'Unknown Client'}
                                                         </h3>
-                                                        <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                                                            <Calendar className="w-3.5 h-3.5" />
+                                                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                                            <Calendar className="w-3 h-3" />
                                                             Responded on {quotation.clientFeedback?.respondedAt ? format(new Date(quotation.clientFeedback.respondedAt), 'PPP p') : 'Unknown date'}
                                                         </p>
                                                     </div>
                                                 </div>
 
                                                 {/* Feedback Content */}
-                                                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                                                <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
                                                     {quotation.clientStatus === 'approved' && (
                                                         <div className="flex gap-3">
-                                                            <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
+                                                            <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
                                                             <div>
-                                                                <p className="font-medium text-emerald-900 mb-1">Quotation Approved</p>
+                                                                <p className="text-sm font-medium text-emerald-900 mb-0.5">Quotation Approved</p>
                                                                 <p className="text-sm text-muted-foreground">
                                                                     {quotation.clientFeedback?.comments || "No additional comments provided."}
                                                                 </p>
@@ -191,11 +180,11 @@ export default function ClientFeedbackPage() {
 
                                                     {quotation.clientStatus === 'rejected' && (
                                                         <div className="flex gap-3">
-                                                            <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                                                            <XCircle className="w-4 h-4 text-red-600 mt-0.5" />
                                                             <div>
-                                                                <p className="font-medium text-red-900 mb-1">Quotation Rejected</p>
-                                                                <p className="text-sm font-medium text-foreground mb-1">Reason: {quotation.clientFeedback?.rejectionReason}</p>
-                                                                <p className="text-sm text-muted-foreground">
+                                                                <p className="text-sm font-medium text-red-900 mb-0.5">Quotation Rejected</p>
+                                                                <p className="text-xs font-medium text-foreground mb-1">Reason: {quotation.clientFeedback?.rejectionReason}</p>
+                                                                <p className="text-xs text-muted-foreground">
                                                                     {quotation.clientFeedback?.comments}
                                                                 </p>
                                                             </div>
@@ -204,20 +193,20 @@ export default function ClientFeedbackPage() {
 
                                                     {quotation.clientStatus === 'changes-requested' && (
                                                         <div className="flex gap-3">
-                                                            <MessageSquare className="w-5 h-5 text-blue-600 mt-0.5" />
+                                                            <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5" />
                                                             <div className="flex-1">
-                                                                <p className="font-medium text-blue-900 mb-2">Requested Changes</p>
+                                                                <p className="text-sm font-medium text-blue-900 mb-1">Requested Changes</p>
                                                                 {quotation.clientFeedback?.requestedChanges && quotation.clientFeedback.requestedChanges.length > 0 ? (
-                                                                    <ul className="list-disc pl-4 space-y-1 mb-2">
+                                                                    <ul className="list-disc pl-4 space-y-0.5 mb-1.5">
                                                                         {quotation.clientFeedback.requestedChanges.map((change: string, i: number) => (
-                                                                            <li key={i} className="text-sm text-foreground">{change}</li>
+                                                                            <li key={i} className="text-xs text-foreground">{change}</li>
                                                                         ))}
                                                                     </ul>
                                                                 ) : (
-                                                                    <p className="text-sm text-muted-foreground italic mb-2">No specific changes listed.</p>
+                                                                    <p className="text-xs text-muted-foreground italic mb-1.5">No specific changes listed.</p>
                                                                 )}
                                                                 {quotation.clientFeedback?.comments && (
-                                                                    <p className="text-sm text-muted-foreground border-t border-blue-200/50 pt-2 mt-2">
+                                                                    <p className="text-xs text-muted-foreground border-t border-blue-200/50 pt-1.5 mt-1.5">
                                                                         <span className="font-medium text-blue-800">Note:</span> {quotation.clientFeedback.comments}
                                                                     </p>
                                                                 )}
@@ -228,20 +217,21 @@ export default function ClientFeedbackPage() {
                                             </div>
 
                                             {/* Right: Actions */}
-                                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-4 lg:border-l lg:pl-6 min-w-[200px]">
+                                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center gap-3 lg:border-l lg:pl-6 min-w-[150px]">
                                                 <div className="text-right hidden lg:block">
-                                                    <p className="text-xs text-muted-foreground uppercase font-semibold">Total Value</p>
-                                                    <p className="text-2xl font-bold text-foreground">₹{quotation.summary?.grandTotal?.toLocaleString()}</p>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Value</p>
+                                                    <p className="text-xl font-bold text-foreground">₹{quotation.summary?.grandTotal?.toLocaleString()}</p>
                                                 </div>
 
-                                                <div className="flex gap-3 w-full lg:w-auto">
+                                                <div className="flex gap-2 w-full lg:w-auto">
                                                     <Button
                                                         variant="outline"
-                                                        className="flex-1 lg:flex-none gap-2"
+                                                        size="sm"
+                                                        className="flex-1 lg:flex-none gap-2 h-8 text-xs"
                                                         onClick={() => navigate(`/quotation/${quotation.id}`)}
                                                     >
                                                         View Quotation
-                                                        <ArrowUpRight className="w-4 h-4" />
+                                                        <ArrowUpRight className="w-3 h-3" />
                                                     </Button>
                                                 </div>
                                             </div>

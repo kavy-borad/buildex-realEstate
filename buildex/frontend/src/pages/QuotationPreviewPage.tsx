@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, FileDown, Building2, Phone, Mail, MapPin, Printer, Share2, Send } from 'lucide-react';
 import { useQuotations } from '@/contexts/QuotationContext';
 import { Button } from '@/components/ui/button';
-import { generateQuotationPDF } from '@/utils/pdfGenerator';
+
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ShareLinkModal } from '@/components/quotation/ShareLinkModal';
@@ -40,12 +40,34 @@ export default function QuotationPreviewPage() {
     );
   }
 
-  const handleDownloadPDF = () => {
-    generateQuotationPDF(quotation, companyDetails);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPDF = async () => {
+    if (!quotation?.id) return;
+
+    setIsDownloading(true);
     toast({
-      title: 'PDF Download Started',
-      description: 'Your quotation is being generated and downloaded.',
+      title: 'Generating PDF',
+      description: 'Please wait, generating your high-quality cinematic PDF...',
     });
+
+    try {
+      await quotationApi.downloadPdf(quotation.id);
+      toast({
+        title: 'Success!',
+        description: 'PDF downloaded successfully.',
+        className: 'border-l-4 border-l-green-500 bg-white dark:bg-slate-900',
+      });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate PDF. Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -119,9 +141,9 @@ export default function QuotationPreviewPage() {
             <Printer className="w-4 h-4" />
             <span className="hidden sm:inline">Print</span>
           </Button>
-          <Button onClick={handleDownloadPDF} className="rounded-xl gap-2 bg-primary shadow-md">
+          <Button onClick={handleDownloadPDF} disabled={isDownloading} className="rounded-xl gap-2 bg-primary shadow-md">
             <FileDown className="w-4 h-4" />
-            <span className="hidden sm:inline">PDF</span>
+            <span className="hidden sm:inline">{isDownloading ? 'Generating...' : 'PDF'}</span>
           </Button>
           <Button variant="outline" size="icon" onClick={handleEmail} className="rounded-xl border-border/50 bg-background/50 hover:bg-background" title="Email Quotation">
             <Mail className="w-4 h-4" />

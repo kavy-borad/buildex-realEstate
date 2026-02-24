@@ -39,12 +39,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { useQuotations } from '@/contexts/QuotationContext';
+import { quotationApi } from '@/services/api/quotationApi';
 import { useToast } from '@/hooks/use-toast';
 import { CostItem, ClientDetails, ProjectDetails, Quotation } from '@/types/quotation';
-import { generateQuotationPDF } from '@/utils/pdfGenerator';
+
 import { cn } from '@/lib/utils';
 import { generateId } from '@/utils/uuid';
+import { ItemNameSelector } from '@/components/quotation/ItemNameSelector';
+import { materialCategories } from '@/data/materialItems';
 
 const projectTypes = [
   // Residential Projects
@@ -120,6 +124,8 @@ export default function CreateQuotationPage() {
 
   // Active Template State (to track which template is currently "in charge")
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [selectedCategoryTemplate, setSelectedCategoryTemplate] = useState<string>(''); // New state for category template
+  const [customItems, setCustomItems] = useState<Record<string, string[]>>({}); // Track user-added items per row
   const [openProjectType, setOpenProjectType] = useState(false);
 
   // Summary State
@@ -129,6 +135,15 @@ export default function CreateQuotationPage() {
   const [addonCost, setAddonCost] = useState(0);
   const [gstPercentage, setGstPercentage] = useState(18);
   const [discount, setDiscount] = useState(0);
+  const [terms, setTerms] = useState<string>(
+    "1. Valid for 30 days from issue date.\n2. 50% advance payment required.\n3. Goods once sold cannot be returned."
+  );
+
+  // Auto-calculate material cost from cost items
+  useEffect(() => {
+    const total = costItems.reduce((sum, item) => sum + (Number(item.rate) * Number(item.quantity)), 0);
+    setMaterialCost(total);
+  }, [costItems]);
 
   // Calculations
   const calculations = useMemo(() => {
@@ -188,6 +203,7 @@ export default function CreateQuotationPage() {
   // Template Handler
   const handleLoadTemplate = (templateId: string) => {
     setActiveTemplateId(templateId);
+    setSelectedCategoryTemplate(''); // Clear category template selection
   };
 
   // 1. Auto-select template based on Project Type
@@ -272,6 +288,44 @@ export default function CreateQuotationPage() {
         setClientDetails(existingQuotation.clientDetails);
         setProjectDetails(existingQuotation.projectDetails);
         setCostItems(existingQuotation.costItems);
+
+        // Restore custom items logic for Material Templates
+        // Map item.id -> string[] (custom items only)
+        const restoredCustomItems: Record<string, string[]> = {};
+
+        existingQuotation.costItems.forEach(item => {
+          if (item.category && item.description) {
+            const catData = materialCategories.find(c => c.category === item.category);
+            const defaultItems = catData?.items || [];
+
+            // Reconstruct full list
+            const savedItems = item.description.split(',').map(s => s.trim()).filter(Boolean);
+
+            // Filter out default items to find custom ones
+            // Note: This is an approximation. If a user added a custom item same as default, it might be filtered.
+            // But usually custom items are unique.
+            const custom = savedItems.filter(i => !defaultItems.includes(i));
+
+            if (custom.length > 0) {
+              restoredCustomItems[item.id] = custom;
+            }
+          }
+        });
+        setCustomItems(restoredCustomItems);
+
+        if (existingQuotation.termsAndConditions) {
+          setTerms(existingQuotation.termsAndConditions);
+        }
+        if (existingQuotation.summary && existingQuotation.summary.labourCost) {
+          setLabourCost(existingQuotation.summary.labourCost);
+        }
+
+        // Helper: If we detect material template items, switch UI mode?
+        // Maybe optional, but good for UX
+        const isMaterial = existingQuotation.costItems.some(i => i.category && i.unit === 'Lump Sum');
+        if (isMaterial) {
+          setSelectedCategoryTemplate('restored'); // Just a marker to show the simplified UI
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -284,21 +338,48 @@ export default function CreateQuotationPage() {
   }, [costItems]);
 
   // Create quotation object
-  const createQuotationObject = (): Quotation => ({
-    id: generateId(),
-    clientDetails,
-    projectDetails,
-    costItems,
-    summary: {
-      subtotal: calculations.subtotal,
-      gstPercentage,
-      gstAmount: calculations.gstAmount,
-      discount,
-      grandTotal: calculations.grandTotal,
-    },
-    createdAt: new Date().toISOString(),
-    status: 'draft',
-  });
+  const createQuotationObject = (): Quotation => {
+    // Enrich cost items with material template details if applicable
+    const enrichedCostItems = costItems.map(item => {
+      // If item has a category, it might be a material template item
+      if (item.category) {
+        const catData = materialCategories.find(c => c.category === item.category);
+        const defaultItems = catData?.items || [];
+        // Check if there are custom items for this specific item ID
+        const userItems = customItems[item.id] || [];
+
+        // Combine default items and user added items
+        const allItems = [...defaultItems, ...userItems];
+
+        // If we have items, set them as the description
+        if (allItems.length > 0) {
+          return {
+            ...item,
+            description: allItems.join(', ')
+          };
+        }
+      }
+      return item;
+    });
+
+    return {
+      id: generateId(),
+      clientDetails,
+      projectDetails,
+      costItems: enrichedCostItems,
+      summary: {
+        subtotal: calculations.subtotal,
+        gstPercentage,
+        gstAmount: calculations.gstAmount,
+        discount,
+        labourCost, // Save labourCost to summary
+        grandTotal: calculations.grandTotal,
+      },
+      termsAndConditions: terms,
+      createdAt: new Date().toISOString(),
+      status: 'draft',
+    };
+  };
 
   // Save quotation
   const handleSave = async () => {
@@ -392,8 +473,8 @@ export default function CreateQuotationPage() {
     }
   };
 
-  // Export PDF
-  const handleExportPDF = () => {
+  // Export PDF (Server Side)
+  const handleExportPDF = async () => {
     if (!clientDetails.name || !projectDetails.projectType) {
       toast({
         title: 'Missing Information',
@@ -403,13 +484,30 @@ export default function CreateQuotationPage() {
       return;
     }
 
-    const quotation = createQuotationObject();
-    generateQuotationPDF(quotation, companyDetails);
-    toast({
-      title: 'PDF Generated',
-      description: 'Your document is ready for download.',
-      className: 'border-l-4 border-l-indigo-600 bg-white dark:bg-slate-900 shadow-md',
-    });
+    try {
+      const quotation = createQuotationObject();
+      toast({
+        title: 'Generating PDF...',
+        description: 'Please wait while we generate your professional PDF.',
+        className: 'border-l-4 border-l-blue-600 bg-white dark:bg-slate-900 shadow-md',
+      });
+
+      // Use server-side generation
+      await quotationApi.previewPdf(quotation);
+
+      toast({
+        title: 'PDF Downloaded',
+        description: 'Your document is ready.',
+        className: 'border-l-4 border-l-indigo-600 bg-white dark:bg-slate-900 shadow-md',
+      });
+    } catch (error) {
+      console.error('PDF Generation Error:', error);
+      toast({
+        title: 'PDF Error',
+        description: 'Failed to generate PDF. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const containerVariants: Variants = {
@@ -427,7 +525,7 @@ export default function CreateQuotationPage() {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="min-h-screen px-6 py-4 bg-background/50 space-y-6 pb-32 max-w-[1200px] mx-auto w-full"
+      className="min-h-screen px-4 md:px-6 py-4 bg-background/50 space-y-6 pb-32 max-w-[1600px] mx-auto w-full"
     >
       {/* Header */}
       <motion.div variants={sectionVariants} className="flex flex-col gap-1">
@@ -677,24 +775,167 @@ export default function CreateQuotationPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Construction Quality</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['basic', 'standard', 'premium'] as const).map((quality) => (
-                  <button
-                    key={quality}
-                    type="button"
-                    onClick={() => setProjectDetails(prev => ({ ...prev, constructionQuality: quality }))}
-                    className={cn(
-                      "px-2 py-2 text-xs font-medium rounded-xl border transition-all duration-200 capitalize",
-                      projectDetails.constructionQuality === quality
-                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25 scale-[1.02]"
-                        : "bg-background/50 text-muted-foreground border-border/50 hover:bg-muted"
+            {/* Configuration Panel - Spans Full Width */}
+            <div className="md:col-span-2 mt-2 pt-4 border-t border-border/50">
+              <Label className="text-sm font-semibold text-foreground mb-4 block">Project Configuration & Templates</Label>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-muted/30 p-4 rounded-xl border border-border/50">
+
+                {/* Quality Selector */}
+                <div className="md:col-span-4 space-y-2">
+                  <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Construction Grade</Label>
+                  <div className="flex rounded-lg border bg-background/50 p-1 shadow-sm">
+                    {(['basic', 'standard', 'premium'] as const).map((quality) => (
+                      <button
+                        key={quality}
+                        type="button"
+                        onClick={() => setProjectDetails(prev => ({ ...prev, constructionQuality: quality }))}
+                        className={cn(
+                          "flex-1 px-3 py-2 text-[11px] font-semibold rounded-md transition-all duration-200 capitalize tracking-wide",
+                          projectDetails.constructionQuality === quality
+                            ? "bg-primary text-primary-foreground shadow-md ring-1 ring-primary/20"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        {quality}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Template 1 */}
+                <div className="md:col-span-4 space-y-2">
+                  <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Primary Template</Label>
+                  <Select value={activeTemplateId || ''} onValueChange={handleLoadTemplate}>
+                    <SelectTrigger className="h-[42px] text-sm bg-background border-border/60 focus:ring-primary/20 transition-all hover:border-primary/50">
+                      <div className="flex items-center gap-2 truncate">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        <SelectValue placeholder="Select Base Template" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {constructionTemplates.map(t => (
+                        <SelectItem key={t.id} value={t.id} className="text-sm cursor-pointer">{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Template 2 */}
+                {/* Material Category Template */}
+                {/* Material Category Template */}
+                <div className="md:col-span-4 space-y-2">
+                  <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Material Template</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={selectedCategoryTemplate === 'all-categories' ? "secondary" : "outline"}
+                      className={cn(
+                        "w-full justify-start h-[42px] border-border/60 hover:bg-orange-500/10 hover:text-orange-600 hover:border-orange-500/30 transition-all",
+                        selectedCategoryTemplate === 'all-categories' && "bg-orange-500/10 text-orange-600 border-orange-500/30 ring-1 ring-orange-500/30"
+                      )}
+                      onClick={() => {
+                        // Activate Material Template Mode
+                        setSelectedCategoryTemplate('all-categories');
+                        setActiveTemplateId(null); // Clear primary template
+
+                        // Load ALL categories with mock amounts
+                        const mockRates: Record<string, number> = {
+                          'Civil / Building Material': 450000,
+                          'Electrical Items': 185000,
+                          'Plumbing Items': 165000,
+                          'Tiles / Marble / Flooring': 275000,
+                          'Carpenter / Wood Work': 225000,
+                          'Paint & Finishing': 60000,
+                        };
+                        const allItems = materialCategories.map(cat => ({
+                          id: generateId(),
+                          itemName: `${cat.category} - Complete Scope`,
+                          category: cat.category,
+                          quantity: 1,
+                          unit: 'Lump Sum',
+                          rate: mockRates[cat.category] || 0,
+                          total: mockRates[cat.category] || 0
+                        }));
+                        setCostItems(allItems);
+
+                        toast({
+                          title: "Material Template Loaded",
+                          description: "Added summary rows for all material categories",
+                          className: 'border-l-4 border-l-orange-500 bg-white dark:bg-slate-900 shadow-md',
+                        });
+                      }}
+                    >
+                      <Sparkles className="w-4 h-4 mr-2 text-orange-500" />
+                      Load Material Quote
+                    </Button>
+
+                    {selectedCategoryTemplate === 'all-categories' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-[42px] w-[42px] text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setSelectedCategoryTemplate('');
+                          setCostItems([{ id: generateId(), itemName: '', quantity: 1, unit: 'Sq.ft', rate: 0, total: 0 }]);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     )}
-                  >
-                    {quality}
-                  </button>
-                ))}
+                  </div>
+                  {/* Dropdown removed per request, commented out for reference */}
+                  <div className="hidden">
+                    <Select value={selectedCategoryTemplate} onValueChange={(category) => {
+                      setSelectedCategoryTemplate(category);
+                      setActiveTemplateId(null); // Clear primary template selection
+
+                      const selectedCat = materialCategories.find(c => c.category === category);
+                      if (selectedCat) {
+                        // Load a SINGLE summary row for the entire category
+                        const summaryItem = {
+                          id: generateId(),
+                          itemName: `${category} - Complete Scope`,
+                          category: selectedCat.category,
+                          quantity: 1,
+                          unit: 'Lump Sum',
+                          rate: 0,
+                          total: 0
+                        };
+                        setCostItems([summaryItem]);
+
+                        toast({
+                          title: "Category Summary Loaded",
+                          description: `Added summary row for ${category}`,
+                          className: 'border-l-4 border-l-orange-500 bg-white dark:bg-slate-900 shadow-md',
+                        });
+                      }
+                    }}>
+                      <SelectTrigger className="h-[42px] text-sm bg-background border-border/60 focus:ring-primary/20 transition-all hover:border-primary/50">
+                        <div className="flex items-center gap-2 truncate">
+                          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                          <SelectValue placeholder="Load Category Summary" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        <SelectItem value="all-categories" className="font-semibold text-primary">
+                          <span className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            <span>Load All Categories</span>
+                          </span>
+                        </SelectItem>
+                        {materialCategories.map((cat) => (
+                          <SelectItem key={cat.category} value={cat.category} className="text-sm cursor-pointer">
+                            <span className="flex items-center gap-2">
+                              <span>{cat.icon}</span>
+                              <span>{cat.category}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -716,22 +957,6 @@ export default function CreateQuotationPage() {
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Select value={activeTemplateId || ''} onValueChange={handleLoadTemplate}>
-              <SelectTrigger className="w-[200px] h-11 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-primary outline-none focus:shadow-sm text-xs font-medium rounded-lg text-primary transition-all focus:ring-0 focus:ring-offset-0">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <SelectValue placeholder="Select Template..." />
-                </div>
-              </SelectTrigger>
-              <SelectContent side="bottom" align="end" className="rounded-xl border-border/50 max-h-[300px]">
-                {constructionTemplates.map(t => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs">
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Button
               onClick={addCostItem}
               size="sm"
@@ -746,11 +971,22 @@ export default function CreateQuotationPage() {
         <div className="space-y-4">
           {/* Header Row */}
           <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wider rounded-lg">
-            <div className="col-span-4">Item Description</div>
-            <div className="col-span-2">Quantity</div>
-            <div className="col-span-2">Unit</div>
-            <div className="col-span-2">Rate (₹)</div>
-            <div className="col-span-2 text-right">Total</div>
+            {selectedCategoryTemplate ? (
+              <>
+                <div className="col-span-3">Category</div>
+                <div className="col-span-6">Total Item</div>
+                <div className="col-span-3 text-right">Total Amount</div>
+              </>
+            ) : (
+              <>
+                <div className="col-span-2">Category</div>
+                <div className="col-span-3">Item Description</div>
+                <div className="col-span-1">Qty</div>
+                <div className="col-span-2">Unit</div>
+                <div className="col-span-2">Rate (₹)</div>
+                <div className="col-span-2 text-right">Total</div>
+              </>
+            )}
           </div>
 
           <AnimatePresence>
@@ -762,65 +998,196 @@ export default function CreateQuotationPage() {
                 exit={{ opacity: 0, x: 20 }}
                 className="group grid grid-cols-1 md:grid-cols-12 gap-4 p-4 rounded-xl border border-border/40 hover:border-primary/30 hover:bg-muted/20 transition-all items-center relative"
               >
-                <div className="md:col-span-4 space-y-1">
-                  <Label className="md:hidden text-xs text-muted-foreground">Description</Label>
-                  <Input
-                    placeholder="Item name"
-                    value={item.itemName}
-                    onChange={(e) => updateCostItem(item.id, 'itemName', e.target.value)}
-                    className="bg-transparent border-none shadow-none p-0 h-auto focus-visible:ring-0 font-medium placeholder:font-normal text-sm"
-                  />
-                </div>
+                {selectedCategoryTemplate ? (
+                  // ----------------------------------------------------
+                  // MATERIAL TEMPLATE MODE (Simplified Layout)
+                  // ----------------------------------------------------
+                  <>
+                    {/* Category Selection */}
+                    <div className="md:col-span-3 space-y-1">
+                      <Label className="md:hidden text-xs text-muted-foreground">Category</Label>
+                      <Select
+                        value={item.category || ''}
+                        onValueChange={(val) => {
+                          updateCostItem(item.id, 'category', val);
+                          if (!item.itemName) updateCostItem(item.id, 'itemName', `${val} - Complete Scope`);
+                          updateCostItem(item.id, 'unit', 'Lump Sum');
+                          updateCostItem(item.id, 'quantity', 1);
+                        }}
+                      >
+                        <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus:ring-0 focus:ring-offset-0">
+                          <SelectValue placeholder="Select Category" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {materialCategories.map((cat) => (
+                            <SelectItem key={cat.category} value={cat.category}>
+                              <span className="flex items-center gap-2">
+                                <span>{cat.icon}</span>
+                                <span>{cat.category}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="md:col-span-2 grid grid-cols-2 md:block gap-4">
-                  <Label className="md:hidden text-xs text-muted-foreground self-center">Qty</Label>
-                  <Input
-                    type="number"
-                    value={item.quantity || ''}
-                    onChange={(e) => updateCostItem(item.id, 'quantity', Number(e.target.value))}
-                    className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                </div>
+                    {/* Total Item Description + Default Items */}
+                    <div className="md:col-span-6 space-y-1">
+                      <Label className="md:hidden text-xs text-muted-foreground">Total Item</Label>
+                      <Input
+                        value={item.itemName}
+                        onChange={(e) => updateCostItem(item.id, 'itemName', e.target.value)}
+                        className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 font-medium placeholder:font-normal text-sm"
+                        placeholder="Description of items..."
+                      />
+                      {/* Default items + custom items in light font */}
+                      {item.category && (() => {
+                        const catData = materialCategories.find(c => c.category === item.category);
+                        if (!catData) return null;
+                        const defaultItems = catData.items || [];
+                        const userItems = customItems[item.id] || [];
+                        const allItems = [...defaultItems, ...userItems];
+                        return (
+                          <div className="mt-1.5 space-y-1.5">
+                            <p className="text-xs text-muted-foreground/70 font-light leading-relaxed">
+                              {allItems.join(', ')}
+                            </p>
+                            <Input
+                              placeholder="+ Add item..."
+                              className="h-7 text-[11px] bg-transparent border-dashed border-muted-foreground/20 rounded-md px-2 focus-visible:ring-0 focus-visible:border-primary/40 text-muted-foreground placeholder:text-muted-foreground/30"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                  const newItem = (e.target as HTMLInputElement).value.trim();
+                                  setCustomItems(prev => ({
+                                    ...prev,
+                                    [item.id]: [...(prev[item.id] || []), newItem]
+                                  }));
+                                  (e.target as HTMLInputElement).value = '';
+                                }
+                              }}
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
 
-                <div className="md:col-span-2 grid grid-cols-2 md:block gap-4">
-                  <Label className="md:hidden text-xs text-muted-foreground self-center">Unit</Label>
-                  <Select value={item.unit} onValueChange={(value) => updateCostItem(item.id, 'unit', value)}>
-                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus:ring-0 focus:ring-offset-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Total Amount (Entered as Rate, since Qty=1) */}
+                    <div className="md:col-span-3 flex justify-between md:justify-end items-center gap-4">
+                      <Label className="md:hidden text-xs text-muted-foreground">Total Amount</Label>
+                      <div className="flex-1 md:flex-none relative w-full md:w-32">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={item.rate || ''}
+                          onChange={(e) => updateCostItem(item.id, 'rate', Number(e.target.value))}
+                          className="pl-7 h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 text-right font-semibold"
+                        />
+                      </div>
 
-                <div className="md:col-span-2 grid grid-cols-2 md:block gap-4">
-                  <Label className="md:hidden text-xs text-muted-foreground self-center">Rate</Label>
-                  <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
-                    <Input
-                      type="number"
-                      value={item.rate || ''}
-                      onChange={(e) => updateCostItem(item.id, 'rate', Number(e.target.value))}
-                      className="pl-5 h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
-                </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCostItem(item.id)}
+                        disabled={costItems.length === 1}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive h-8 w-8"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  // ----------------------------------------------------
+                  // STANDARD MODE (Full Detailed Layout)
+                  // ----------------------------------------------------
+                  <>
+                    {/* Category Selection */}
+                    <div className="md:col-span-2 space-y-1">
+                      <Label className="md:hidden text-xs text-muted-foreground">Category</Label>
+                      <Select
+                        value={item.category || ''}
+                        onValueChange={(val) => {
+                          updateCostItem(item.id, 'category', val);
+                          updateCostItem(item.id, 'itemName', ''); // Reset item name when category changes
+                        }}
+                      >
+                        <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus:ring-0 focus:ring-offset-0">
+                          <SelectValue placeholder="Select Category" className="placeholder:text-muted-foreground/50" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {materialCategories.map((cat) => (
+                            <SelectItem key={cat.category} value={cat.category}>
+                              <span className="flex items-center gap-2">
+                                <span>{cat.icon}</span>
+                                <span>{cat.category}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="md:col-span-2 flex justify-between md:justify-end items-center gap-4">
-                  <Label className="md:hidden text-xs text-muted-foreground">Total</Label>
-                  <span className="font-semibold text-primary">₹{item.total.toLocaleString('en-IN')}</span>
+                    <div className="md:col-span-3 space-y-1">
+                      <Label className="md:hidden text-xs text-muted-foreground">Description</Label>
+                      <ItemNameSelector
+                        value={item.itemName}
+                        category={item.category}
+                        onChange={(val) => updateCostItem(item.id, 'itemName', val)}
+                        className="w-full justify-between h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 px-3 font-medium text-sm"
+                      />
+                    </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeCostItem(item.id)}
-                    disabled={costItems.length === 1}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive h-8 w-8"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                    <div className="md:col-span-1 grid grid-cols-2 md:block gap-4">
+                      <Label className="md:hidden text-xs text-muted-foreground self-center">Qty</Label>
+                      <Input
+                        type="number"
+                        value={item.quantity || ''}
+                        onChange={(e) => updateCostItem(item.id, 'quantity', Number(e.target.value))}
+                        className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 grid grid-cols-2 md:block gap-4">
+                      <Label className="md:hidden text-xs text-muted-foreground self-center">Unit</Label>
+                      <Select value={item.unit} onValueChange={(value) => updateCostItem(item.id, 'unit', value)}>
+                        <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus:ring-0 focus:ring-offset-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2 grid grid-cols-2 md:block gap-4">
+                      <Label className="md:hidden text-xs text-muted-foreground self-center">Rate</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          value={item.rate || ''}
+                          onChange={(e) => updateCostItem(item.id, 'rate', Number(e.target.value))}
+                          className="pl-5 h-11 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-between md:justify-end items-center gap-4">
+                      <Label className="md:hidden text-xs text-muted-foreground">Total</Label>
+                      <span className="font-semibold text-primary">₹{item.total.toLocaleString('en-IN')}</span>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCostItem(item.id)}
+                        disabled={costItems.length === 1}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive h-8 w-8"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -941,6 +1308,19 @@ export default function CreateQuotationPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Terms and Conditions Input */}
+              <div className="mt-6 space-y-2">
+                <Label htmlFor="terms" className="text-sm font-medium">Terms & Conditions</Label>
+                <Textarea
+                  id="terms"
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  className="min-h-[120px] bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-primary focus:bg-white dark:focus:bg-slate-950 outline-none focus:shadow-sm transition-all rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0 resize-none text-sm"
+                  placeholder="Enter terms and conditions..."
+                />
+                <p className="text-xs text-muted-foreground">Each new line will be treated as a separate bullet point in the PDF.</p>
               </div>
             </div>
           </div>

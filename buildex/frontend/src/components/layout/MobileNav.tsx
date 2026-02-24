@@ -9,15 +9,19 @@ import {
   FileText,
   Settings,
   Building2,
-  LogOut
+  LogOut,
+  Bell,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/create-quotation', label: 'Create Quotation', icon: FilePlus },
-  { path: '/quotations', label: 'Quotations', icon: FileText },
+  { path: '/create-quotation', label: 'New Quotation', icon: FilePlus },
+  { path: '/quotations', label: 'Quotation History', icon: FileText },
+  { path: '/feedback', label: 'Client Feedback', icon: MessageSquare },
+  { path: '/notifications', label: 'Notifications', icon: Bell },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

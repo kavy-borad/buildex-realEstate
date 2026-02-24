@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { generateQuotationPDF } from '@/utils/pdfGenerator';
+
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { quotationApi } from '@/services/api/quotationApi';
@@ -57,13 +57,25 @@ export default function QuotationListPage() {
       return true;
     });
 
-  const handleDownloadPDF = (quotationId: string) => {
-    const quotation = quotations.find(q => q.id === quotationId);
-    if (quotation) {
-      generateQuotationPDF(quotation, companyDetails);
+  const handleDownloadPDF = async (quotationId: string) => {
+    toast({
+      title: 'Generating PDF',
+      description: 'Please wait, generating your high-quality cinematic PDF...',
+    });
+
+    try {
+      await quotationApi.downloadPdf(quotationId);
       toast({
-        title: 'PDF Downloaded',
-        description: 'Your quotation PDF has been downloaded.',
+        title: 'Success!',
+        description: 'PDF downloaded successfully.',
+        className: 'border-l-4 border-l-green-500 bg-white dark:bg-slate-900',
+      });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate PDF. Please try again later.',
+        variant: 'destructive',
       });
     }
   };

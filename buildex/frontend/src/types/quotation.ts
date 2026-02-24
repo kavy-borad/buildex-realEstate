@@ -1,6 +1,8 @@
 export interface CostItem {
   id: string;
   itemName: string;
+  category?: string;
+  description?: string;
   quantity: number;
   unit: string;
   rate: number;
@@ -42,6 +44,7 @@ export interface QuotationSummary {
   gstPercentage: number;
   gstAmount: number;
   discount: number;
+  labourCost?: number;
   grandTotal: number;
 }
 

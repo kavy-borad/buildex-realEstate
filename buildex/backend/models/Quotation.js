@@ -5,6 +5,14 @@ const costItemSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    category: {
+        type: String,
+        required: false
+    },
+    description: {
+        type: String,
+        required: false
+    },
     quantity: {
         type: Number,
         required: true,
@@ -82,6 +90,11 @@ const summarySchema = new mongoose.Schema({
     grandTotal: {
         type: Number,
         required: true,
+        min: 0
+    },
+    labourCost: {
+        type: Number,
+        default: 0,
         min: 0
     }
 }, { _id: false });

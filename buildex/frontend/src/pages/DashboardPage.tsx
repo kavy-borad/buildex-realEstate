@@ -21,6 +21,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dashboardApi } from '@/services/api/miscApi';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [statsData, setStatsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+  const [selectedChart, setSelectedChart] = useState<'revenue' | 'projects'>('revenue');
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -67,7 +69,12 @@ export default function DashboardPage() {
       return mockData;
     }
 
-    const data = statsData.revenueChart;
+
+
+    // Select data based on chart type
+    const data = selectedChart === 'revenue'
+      ? statsData.revenueChart
+      : (statsData.projectChart || []);
 
     if (timeFilter === '30days') {
       return data;
@@ -107,6 +114,8 @@ export default function DashboardPage() {
       isPositive: true,
       icon: TrendingUp,
       gradient: 'from-blue-500 to-cyan-500',
+      onClick: () => setSelectedChart('revenue'),
+      isActive: selectedChart === 'revenue'
     },
     {
       label: 'Total Projects',
@@ -115,27 +124,9 @@ export default function DashboardPage() {
       isPositive: true,
       icon: FileCheck,
       gradient: 'from-purple-500 to-pink-500',
+      onClick: () => setSelectedChart('projects'),
+      isActive: selectedChart === 'projects'
     },
-    /* Total Clients card commented out
-    {
-      label: 'Total Clients',
-      value: overview.totalClients.toString(),
-      change: 'Active',
-      isPositive: true,
-      icon: Users,
-      gradient: 'from-orange-500 to-red-500',
-    },
-    */
-    /* Removed Pending Amount card
-    {
-      label: 'Pending Amount',
-      value: `₹${overview.totalPending.toLocaleString('en-IN')}`,
-      change: 'To Collect',
-      isPositive: false,
-      icon: AlertCircle,
-      gradient: 'from-emerald-500 to-green-500',
-    },
-    */
   ];
 
   const projectStats = [
@@ -184,7 +175,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div ref={containerRef} className="min-h-screen p-6 max-w-[1600px] mx-auto space-y-6 w-full">
+    <div ref={containerRef} className="min-h-screen px-4 md:px-6 py-4 max-w-[1600px] mx-auto space-y-6 w-full">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -216,7 +207,7 @@ export default function DashboardPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
       >
         {projectStats.map((stat) => (
           <motion.div
@@ -249,13 +240,14 @@ export default function DashboardPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-6"
       >
         {stats.map((stat) => (
           <motion.div
             key={stat.label}
             variants={itemVariants}
-            className="group relative overflow-hidden bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+            onClick={stat.onClick}
+            className={`group relative overflow-hidden bg-card/50 backdrop-blur-sm border rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer ${stat.isActive ? 'border-primary ring-2 ring-primary/20 shadow-lg shadow-primary/10' : 'border-border/50'}`}
           >
             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
             <div className="flex items-start justify-between">
@@ -290,39 +282,60 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 shadow-sm"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold">Revenue Overview</h3>
+            <div className="flex flex-col mb-4">
+              <h3 className="text-base sm:text-lg font-semibold">{selectedChart === 'revenue' ? 'Revenue Overview' : 'Total Projects Growth'}</h3>
+              <div className="flex flex-row items-center justify-between gap-2 mt-1 w-full">
                 <div className="flex items-baseline gap-2">
-                  <h2 className="text-2xl font-bold">
-                    ₹{chartData.reduce((acc: number, item: any) => acc + (item.value || 0), 0).toLocaleString('en-IN')}
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold truncate max-w-[140px] sm:max-w-none">
+                    {selectedChart === 'revenue' ? '₹' : ''}
+                    {chartData.reduce((acc: number, item: any) => acc + (item.value || 0), 0)
+                      .toLocaleString('en-IN')
+                    }
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {timeFilter === 'today' ? "generated today" :
+                  <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-normal leading-tight w-12 sm:w-auto">
+                    {timeFilter === 'today' ? "in today" :
                       timeFilter === '7days' ? "in last 7 days" :
                         "in last 30 days"}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center bg-muted/30 rounded-lg p-1 gap-1">
-                <button
-                  onClick={() => setTimeFilter('today')}
-                  className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === 'today' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => setTimeFilter('7days')}
-                  className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === '7days' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                >
-                  7 Days
-                </button>
-                <button
-                  onClick={() => setTimeFilter('30days')}
-                  className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === '30days' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                >
-                  30 Days
-                </button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Desktop view */}
+                  <div className="hidden sm:flex items-center bg-muted/30 rounded-lg p-1 gap-1">
+                    <button
+                      onClick={() => setTimeFilter('today')}
+                      className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === 'today' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => setTimeFilter('7days')}
+                      className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === '7days' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    >
+                      7 Days
+                    </button>
+                    <button
+                      onClick={() => setTimeFilter('30days')}
+                      className={`text-xs px-3 py-1.5 rounded-md transition-all ${timeFilter === '30days' ? 'bg-primary text-primary-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    >
+                      30 Days
+                    </button>
+                  </div>
+
+                  {/* Mobile/Tablet view */}
+                  <div className="sm:hidden">
+                    <Select value={timeFilter} onValueChange={(val: any) => setTimeFilter(val)}>
+                      <SelectTrigger className="h-8 w-[90px] text-[10px] font-medium bg-muted/30 border-0 focus:ring-0 px-2">
+                        <SelectValue placeholder="Period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="today" className="text-[10px]">Today</SelectItem>
+                        <SelectItem value="7days" className="text-[10px]">7 Days</SelectItem>
+                        <SelectItem value="30days" className="text-[10px]">30 Days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="h-[300px] w-full">
@@ -330,8 +343,8 @@ export default function DashboardPage() {
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      <stop offset="5%" stopColor={selectedChart === 'revenue' ? '#8b5cf6' : '#ec4899'} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={selectedChart === 'revenue' ? '#8b5cf6' : '#ec4899'} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
@@ -360,7 +373,7 @@ export default function DashboardPage() {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#8b5cf6"
+                    stroke={selectedChart === 'revenue' ? '#8b5cf6' : '#ec4899'}
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorValue)"
@@ -433,7 +446,7 @@ export default function DashboardPage() {
           </motion.div>
 
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

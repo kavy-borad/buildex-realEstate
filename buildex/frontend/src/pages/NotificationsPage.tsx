@@ -99,7 +99,7 @@ export default function NotificationsPage() {
     };
 
     return (
-        <div ref={containerRef} className="min-h-screen p-6 max-w-[1200px] mx-auto space-y-6 w-full">
+        <div ref={containerRef} className="min-h-screen px-4 md:px-6 py-4 max-w-[1600px] mx-auto space-y-6 w-full">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
