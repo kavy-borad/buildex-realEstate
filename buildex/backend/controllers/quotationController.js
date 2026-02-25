@@ -14,128 +14,136 @@ import crypto from 'crypto';
  * Transform MongoDB quotation to frontend format
  */
 const transformQuotationForFrontend = (quotation) => {
-    const quotationObj = quotation.toObject ? quotation.toObject() : quotation;
+    const q = quotation.toObject ? quotation.toObject() : quotation;
 
     return {
-        id: quotationObj._id.toString(),
-        quotationNumber: quotationObj.quotationNumber,
-        clientDetails: {
-            name: quotationObj.client?.name || '',
-            phone: quotationObj.client?.phone || '',
-            email: quotationObj.client?.email || '',
-            siteAddress: quotationObj.client?.address || '',
-            quotationDate: quotationObj.quotationDate || quotationObj.createdAt,
-            validTill: quotationObj.validTill || quotationObj.tokenExpiresAt
+        id: q._id.toString(),
+        quotationNumber: q.quotationNumber,
+        clientDetails: q.clientDetails || {
+            name: q.client?.name || '',
+            phone: q.client?.phone || '',
+            email: q.client?.email || '',
+            siteAddress: q.client?.address || '',
+            quotationDate: q.quotationDate || q.createdAt,
+            validTill: q.validTill || q.tokenExpiresAt
         },
-        projectDetails: quotationObj.projectDetails,
-        costItems: quotationObj.costItems,
-        summary: quotationObj.summary,
-        status: quotationObj.status,
-        createdAt: quotationObj.createdAt,
-        notes: quotationObj.notes
+        projectDetails: q.projectDetails,
+        costItems: q.costItems,
+        summary: q.summary,
+        termsAndConditions: q.termsAndConditions || '',
+        status: q.status,
+        createdAt: q.createdAt,
+        notes: q.notes
     };
 };
 
 /**
  * ─────────────────────────────────────────────────────────────────────────
  * 1. CREATE QUOTATION
+ * POST /api/quotations
  * ─────────────────────────────────────────────────────────────────────────
  */
 export const createQuotation = async (req, res) => {
+    const startTime = Date.now();
+    console.log('\n📋 [Quotation] POST /quotations → Request received');
+
     try {
-        console.log('\n🔵 ============================================');
-        console.log('📋 CREATE QUOTATION REQUEST RECEIVED');
-        console.log('============================================');
+        const { clientDetails, projectDetails, costItems, summary, termsAndConditions, status, notes } = req.body;
 
-        const { clientDetails, projectDetails, costItems, summary, status, notes } = req.body;
-
-        console.log('📝 Request Body:', {
-            hasClientDetails: !!clientDetails,
-            hasProjectDetails: !!projectDetails,
-            hasCostItems: !!costItems,
-            costItemsCount: costItems?.length || 0,
-            hasSummary: !!summary,
-            status: status || 'draft'
+        // ── Step 1: Validate required fields ──
+        if (!clientDetails?.name || !clientDetails?.phone) {
+            console.log('  ❌ Validation failed: Missing client name or phone');
+            return res.status(400).json({
+                success: false,
+                message: 'Client name and phone are required'
+            });
+        }
+        if (!projectDetails?.projectType) {
+            console.log('  ❌ Validation failed: Missing project type');
+            return res.status(400).json({
+                success: false,
+                message: 'Project type is required'
+            });
+        }
+        if (!costItems || costItems.length === 0) {
+            console.log('  ❌ Validation failed: No cost items');
+            return res.status(400).json({
+                success: false,
+                message: 'At least one cost item is required'
+            });
+        }
+        if (!summary?.grandTotal && summary?.grandTotal !== 0) {
+            console.log('  ❌ Validation failed: Missing grand total in summary');
+            return res.status(400).json({
+                success: false,
+                message: 'Quotation summary with grandTotal is required'
+            });
+        }
+        console.log('  ✅ Validation passed:', {
+            client: clientDetails.name,
+            project: projectDetails.projectType,
+            items: costItems.length,
+            grandTotal: summary.grandTotal
         });
 
-        // Find or create client
-        console.log('🔍 Searching for existing client with phone:', clientDetails.phone);
+        // ── Step 2: Find or create client in Client collection ──
+        console.log('  🔍 Looking up client:', clientDetails.phone);
         let client = await Client.findOne({ phone: clientDetails.phone });
 
         if (!client) {
-            console.log('❌ Client not found - Creating new client...');
             client = await Client.create({
                 name: clientDetails.name,
                 phone: clientDetails.phone,
-                email: clientDetails.email,
-                address: clientDetails.siteAddress
+                email: clientDetails.email || '',
+                address: clientDetails.siteAddress || ''
             });
-            console.log('✅ New client created:', client._id);
+            console.log('  👤 New client created:', client._id);
         } else {
-            console.log('✅ Existing client found:', client._id);
+            console.log('  👤 Existing client found:', client._id);
         }
 
-        // Generate quotation number
-        console.log('🔢 Generating quotation number...');
+        // ── Step 3: Generate quotation number ──
         const quotationNumber = await generateQuotationNumber();
-        console.log('✅ Quotation number generated:', quotationNumber);
+        console.log('  🔢 Quotation number:', quotationNumber);
 
-        // Generate secure access token
+        // ── Step 4: Generate access token + dates ──
         const accessToken = crypto.randomBytes(32).toString('hex');
-
-        // Calculate valid till date (30 days default)
         const quotationDate = clientDetails.quotationDate ? new Date(clientDetails.quotationDate) : new Date();
         const validTill = clientDetails.validTill ? new Date(clientDetails.validTill) : new Date(quotationDate.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        console.log('📅 Dates:', {
-            quotationDate: quotationDate.toISOString(),
-            validTill: validTill.toISOString()
-        });
-
-        // Create quotation
-        console.log('💾 Creating quotation in database...');
+        // ── Step 5: Save to database ──
+        console.log('  💾 Saving to database...');
         const quotation = await Quotation.create({
             quotationNumber,
+            clientDetails,
             client: client._id,
             projectDetails,
             costItems,
             summary,
+            termsAndConditions: termsAndConditions || '',
             status: status || 'draft',
             quotationDate,
             validTill,
-            notes,
+            notes: notes || '',
             accessToken,
             tokenExpiresAt: validTill
         });
-        console.log('✅ Quotation created successfully! ID:', quotation._id);
 
-        // Update client statistics
-        console.log('📊 Updating client statistics...');
+        // ── Step 6: Update client stats ──
         client.totalQuotations += 1;
         await client.save();
-        console.log('✅ Client stats updated. Total quotations:', client.totalQuotations);
 
-        // Populate and return
-        console.log('🔗 Populating client data...');
-        await quotation.populate('client');
-        console.log('✅ Client data populated');
-
-        console.log('✅ ============================================');
-        console.log('✅ QUOTATION CREATED SUCCESSFULLY!');
-        console.log('✅ ============================================\n');
+        const duration = Date.now() - startTime;
+        console.log(`  ✅ Quotation created: ${quotationNumber} | ID: ${quotation._id} | ₹${summary.grandTotal.toLocaleString('en-IN')} | ${duration}ms\n`);
 
         res.status(201).json({
             success: true,
             data: transformQuotationForFrontend(quotation)
         });
     } catch (error) {
-        console.error('\n❌ ============================================');
-        console.error('❌ ERROR CREATING QUOTATION');
-        console.error('❌ ============================================');
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('❌ ============================================\n');
+        const duration = Date.now() - startTime;
+        console.error(`  ❌ [Quotation] POST failed | ${duration}ms | ${error.message}`);
+        console.error('  Stack:', error.stack);
 
         res.status(500).json({
             success: false,
@@ -148,9 +156,13 @@ export const createQuotation = async (req, res) => {
 /**
  * ─────────────────────────────────────────────────────────────────────────
  * 2. GET ALL QUOTATIONS
+ * GET /api/quotations?status=draft&startDate=...&endDate=...
  * ─────────────────────────────────────────────────────────────────────────
  */
 export const getAllQuotations = async (req, res) => {
+    const startTime = Date.now();
+    console.log('\n📋 [Quotation] GET /quotations → Request received');
+
     try {
         const { status, clientStatus, startDate, endDate, clientId } = req.query;
 
@@ -165,6 +177,11 @@ export const getAllQuotations = async (req, res) => {
             if (endDate) filter.createdAt.$lte = new Date(endDate);
         }
 
+        const activeFilters = Object.keys(filter);
+        if (activeFilters.length > 0) {
+            console.log('  🔍 Filters:', filter);
+        }
+
         const quotations = await Quotation.find(filter)
             .sort({ createdAt: -1 })
             .populate('client');
@@ -172,12 +189,17 @@ export const getAllQuotations = async (req, res) => {
         // Transform to frontend format
         const transformedQuotations = quotations.map(transformQuotationForFrontend);
 
+        const duration = Date.now() - startTime;
+        console.log(`  ✅ Found ${transformedQuotations.length} quotations | Filters: ${activeFilters.length > 0 ? activeFilters.join(', ') : 'none'} | ${duration}ms\n`);
+
         res.status(200).json({
             success: true,
+            count: transformedQuotations.length,
             data: transformedQuotations
         });
     } catch (error) {
-        console.error('Error fetching quotations:', error);
+        const duration = Date.now() - startTime;
+        console.error(`  ❌ [Quotation] GET failed | ${duration}ms | ${error.message}`);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch quotations',
@@ -231,7 +253,7 @@ export const getQuotationById = async (req, res) => {
  */
 export const updateQuotation = async (req, res) => {
     try {
-        const { projectDetails, costItems, summary, notes } = req.body;
+        const { clientDetails, projectDetails, costItems, summary, notes } = req.body;
 
         const quotation = await Quotation.findById(req.params.id);
 
@@ -240,6 +262,7 @@ export const updateQuotation = async (req, res) => {
         }
 
         // Update fields
+        if (clientDetails) quotation.clientDetails = clientDetails;
         if (projectDetails) quotation.projectDetails = projectDetails;
         if (costItems) quotation.costItems = costItems;
         if (summary) quotation.summary = summary;
@@ -265,38 +288,50 @@ export const updateQuotation = async (req, res) => {
 /**
  * ─────────────────────────────────────────────────────────────────────────
  * 5. DELETE QUOTATION
+ * DELETE /api/quotations/:id
  * ─────────────────────────────────────────────────────────────────────────
  */
 export const deleteQuotation = async (req, res) => {
+    const startTime = Date.now();
+    const id = req.params.id;
+    console.log(`\n🗑️ [Quotation] DELETE /quotations/${id} → Request received`);
+
     try {
-        const quotation = await Quotation.findById(req.params.id);
+        const quotation = await Quotation.findById(id);
 
         if (!quotation) {
-            return res.status(404).json({ message: 'Quotation not found' });
+            console.log(`  ❌ Error: Quotation not found (${id})`);
+            return res.status(404).json({ success: false, message: 'Quotation not found' });
         }
 
-        // Update client statistics (Optional: don't block deletion if this fails)
+        const quotationNumber = quotation.quotationNumber;
+
+        // Update client statistics
         if (quotation.client) {
             try {
                 const client = await Client.findById(quotation.client);
                 if (client) {
                     client.totalQuotations = Math.max(0, client.totalQuotations - 1);
                     await client.save();
+                    console.log(`  👤 Updated client stats (Total Quotations: ${client.totalQuotations})`);
                 }
             } catch (clientError) {
-                console.warn('Failed to update client stats during quotation deletion:', clientError);
-                // Continue with deletion
+                console.warn('  ⚠️ Failed to update client stats:', clientError.message);
             }
         }
 
         await quotation.deleteOne();
+
+        const duration = Date.now() - startTime;
+        console.log(`  ✅ Successfully deleted quotation ${quotationNumber} (ID: ${id}) | ${duration}ms\n`);
 
         res.status(200).json({
             success: true,
             message: 'Quotation deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting quotation:', error);
+        const duration = Date.now() - startTime;
+        console.error(`  ❌ [Quotation] DELETE failed | ${duration}ms | ${error.message}`);
         res.status(500).json({
             success: false,
             message: 'Failed to delete quotation',

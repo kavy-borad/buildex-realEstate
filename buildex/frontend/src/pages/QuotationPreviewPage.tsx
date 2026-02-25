@@ -20,6 +20,7 @@ export default function QuotationPreviewPage() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareableUrl, setShareableUrl] = useState('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const quotation = id ? getQuotation(id) : undefined;
 
@@ -39,8 +40,6 @@ export default function QuotationPreviewPage() {
       </div>
     );
   }
-
-  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPDF = async () => {
     if (!quotation?.id) return;

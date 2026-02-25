@@ -21,7 +21,7 @@ import {
   Check,
   ChevronsUpDown
 } from 'lucide-react';
-import { constructionTemplates } from '@/data/quotationTemplates';
+import { dashboardApi } from '@/services/api/miscApi';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -123,10 +123,12 @@ export default function CreateQuotationPage() {
   ]);
 
   // Active Template State (to track which template is currently "in charge")
+  const [templates, setTemplates] = useState<any[]>([]);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [selectedCategoryTemplate, setSelectedCategoryTemplate] = useState<string>(''); // New state for category template
   const [customItems, setCustomItems] = useState<Record<string, string[]>>({}); // Track user-added items per row
   const [openProjectType, setOpenProjectType] = useState(false);
+  const [saving, setSaving] = useState(false); // Prevents duplicate API calls
 
   // Summary State
   const [quotationType, setQuotationType] = useState<'labour-only' | 'labour-material'>('labour-material');
@@ -144,6 +146,21 @@ export default function CreateQuotationPage() {
     const total = costItems.reduce((sum, item) => sum + (Number(item.rate) * Number(item.quantity)), 0);
     setMaterialCost(total);
   }, [costItems]);
+
+  // Fetch dynamic templates from API on mount
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const response = await dashboardApi.getTemplates();
+        if (response.success && response.data) {
+          setTemplates(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load templates', error);
+      }
+    };
+    fetchTemplates();
+  }, []);
 
   // Calculations
   const calculations = useMemo(() => {
@@ -245,9 +262,9 @@ export default function CreateQuotationPage() {
 
   // 2. Load Items when Template OR Quality changes
   useEffect(() => {
-    if (!activeTemplateId) return;
+    if (!activeTemplateId || templates.length === 0) return;
 
-    const template = constructionTemplates.find(t => t.id === activeTemplateId);
+    const template = templates.find(t => t.id === activeTemplateId);
     if (!template) return;
 
     // Determine which items to use based on quality
@@ -278,7 +295,7 @@ export default function CreateQuotationPage() {
         duration: 2500,
       });
     }
-  }, [activeTemplateId, projectDetails.constructionQuality]);
+  }, [activeTemplateId, projectDetails.constructionQuality, templates]);
 
   // Load existing quotation data for edit mode
   useEffect(() => {
@@ -383,6 +400,7 @@ export default function CreateQuotationPage() {
 
   // Save quotation
   const handleSave = async () => {
+    if (saving) return; // ← Prevent duplicate calls
     console.log('🔵 Save Draft clicked - Starting validation...');
 
     if (!clientDetails.name || !clientDetails.phone || !projectDetails.projectType || !projectDetails.city || !projectDetails.area) {
@@ -415,21 +433,21 @@ export default function CreateQuotationPage() {
     }
 
     console.log('✅ Validation passed - Creating quotation object...');
+    setSaving(true); // ← Lock to prevent duplicate
 
     try {
       const quotation = createQuotationObject();
       console.log('📋 Quotation object created:', {
-        id: quotation.id,
         clientName: quotation.clientDetails.name,
         projectType: quotation.projectDetails.projectType,
         itemCount: quotation.costItems.length,
         total: quotation.summary.grandTotal
       });
 
-      console.log('💾 Calling API to save quotation...');
+      console.log('💾 Calling POST /api/quotations...');
       const saved = await addQuotation(quotation);
 
-      console.log('✅ Save successful!', saved);
+      console.log('✅ Save successful! ID:', saved?.id);
 
       toast({
         title: 'Draft Saved',
@@ -438,31 +456,31 @@ export default function CreateQuotationPage() {
       });
 
       if (saved && saved.id) {
-        console.log('🔀 Navigating to quotation preview:', saved.id);
         navigate(`/quotation/${saved.id}`);
       } else {
-        console.log('🔀 Navigating to quotation preview (fallback):', quotation.id);
         navigate(`/quotation/${quotation.id}`);
       }
     } catch (error: any) {
-      console.error('❌ SAVE FAILED - Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('❌ SAVE FAILED:', error.message);
 
       toast({
         title: 'Save Failed ❌',
         description: error.message || 'Failed to save quotation. Check console for details.',
         variant: 'destructive',
       });
+    } finally {
+      setSaving(false); // ← Always unlock
     }
   };
 
   // Preview quotation
   const handlePreview = async () => {
+    if (saving) return; // ← Prevent duplicate calls
+    setSaving(true);
     try {
       const quotation = createQuotationObject();
-      await addQuotation(quotation);
-      navigate(`/quotation/${quotation.id}`);
+      const saved = await addQuotation(quotation);
+      navigate(`/quotation/${saved?.id || quotation.id}`);
     } catch (error) {
       console.error('Error saving quotation:', error);
       toast({
@@ -470,6 +488,8 @@ export default function CreateQuotationPage() {
         description: 'Failed to save quotation. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -814,7 +834,7 @@ export default function CreateQuotationPage() {
                       </div>
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
-                      {constructionTemplates.map(t => (
+                      {templates.map(t => (
                         <SelectItem key={t.id} value={t.id} className="text-sm cursor-pointer">{t.name}</SelectItem>
                       ))}
                     </SelectContent>

@@ -3,7 +3,7 @@ import { quotationApi } from '../services/api/quotationApi';
 import { settingsApi } from '../services/api/miscApi';
 import { Quotation, CompanyDetails } from '@/types/quotation';
 
-const USE_API = true; // Enable API integration
+const USE_API = true; // Enabled! Now using live API endpoints
 
 interface QuotationContextType {
   quotations: Quotation[];
@@ -65,20 +65,8 @@ export function QuotationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch on mount
-  useEffect(() => {
-    if (USE_API) {
-      refreshQuotations();
-
-      // Also fetch company details
-      settingsApi.getCompanyDetails().then(res => {
-        if (res.success && res.data) {
-          setCompanyDetails(res.data);
-          localStorage.setItem('companyDetails', JSON.stringify(res.data));
-        }
-      });
-    }
-  }, [refreshQuotations]);
+  // Company details are loaded from localStorage on mount (line 40-41).
+  // They are only updated when the user explicitly saves from the Settings page.
 
   // ─────────────────────────────────────────────────────────────────────────
   // Add Quotation

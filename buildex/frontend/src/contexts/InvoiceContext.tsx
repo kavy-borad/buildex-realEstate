@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { invoiceApi } from '../services/api/invoiceApi';
 import { Invoice } from '@/types/invoice';
 
-const USE_API = true;
+const USE_API = false; // Disabled - will re-enable when APIs are ready
 
 interface InvoiceContextType {
     invoices: Invoice[];

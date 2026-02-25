@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Log Viewer - Buildex</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #F8FAFD;
+            --card-bg: #FFFFFF;
+            --border: #E8EDF3;
+            --text-primary: #1A1D26;
+            --text-secondary: #6B7280;
+            --text-muted: #9CA3AF;
+            --accent-blue: #3B82F6;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --accent-amber: #F59E0B;
+            --pill-api-bg: #EEF2FF;
+            --pill-api-text: #4F46E5;
+            --pill-get-bg: #ECFDF5;
+            --pill-get-text: #059669;
+            --pill-get-border: #A7F3D0;
+            --pill-post-bg: #EFF6FF;
+            --pill-post-text: #2563EB;
+            --pill-post-border: #BFDBFE;
+            --pill-put-bg: #FFFBEB;
+            --pill-put-text: #D97706;
+            --pill-put-border: #FDE68A;
+            --pill-delete-bg: #FEF2F2;
+            --pill-delete-text: #DC2626;
+            --pill-delete-border: #FECACA;
+            --pill-patch-bg: #F5F3FF;
+            --pill-patch-text: #7C3AED;
+            --pill-patch-border: #DDD6FE;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #4F46E5, #7C3AED);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .connection-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: 12px;
+        }
+
+        .connection-badge.connected {
+            background: #ECFDF5;
+            color: #059669;
+        }
+
+        .connection-badge.disconnected {
+            background: #FEF2F2;
+            color: #DC2626;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .connection-dot.online {
+            background: #10B981;
+        }
+
+        .connection-dot.online::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 2px solid #10B981;
+            animation: pulse-ring 1.5s infinite;
+        }
+
+        .connection-dot.offline {
+            background: #EF4444;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                opacity: 0.6;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.8);
+            }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+        }
+
+        .btn:hover {
+            background: #F3F4F6;
+        }
+
+        .btn-auto-scroll {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-auto-scroll:hover {
+            background: #2563EB;
+        }
+
+        .btn-auto-scroll.off {
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+
+        .btn-clear {
+            color: var(--accent-red);
+            border-color: #FECACA;
+        }
+
+        .btn-clear:hover {
+            background: #FEF2F2;
+        }
+
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            padding: 14px 28px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .stat-value.blue {
+            color: var(--accent-blue);
+        }
+
+        .stat-value.green {
+            color: var(--accent-green);
+        }
+
+        .stat-value.red {
+            color: var(--accent-red);
+        }
+
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .filter-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+        }
+
+        .filter-btn:hover {
+            background: #F3F4F6;
+            color: var(--text-primary);
+        }
+
+        .filter-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        .log-list {
+            padding: 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .log-row {
+            display: grid;
+            grid-template-columns: 70px 65px 1fr 70px 70px 90px;
+            align-items: center;
+            padding: 12px 28px;
+            border-bottom: 1px solid var(--border);
+            background: var(--card-bg);
+            transition: background 0.1s ease;
+            font-size: 13px;
+        }
+
+        .log-row:hover {
+            background: #F9FAFB;
+        }
+
+        .log-row.error-row {
+            background: #FFF5F5;
+        }
+
+        .log-row.error-row:hover {
+            background: #FEF2F2;
+        }
+
+        .log-row.new-entry {
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+                background: #EEF2FF;
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            border: 1px solid;
+        }
+
+        .pill-api {
+            background: var(--pill-api-bg);
+            color: var(--pill-api-text);
+            border-color: #C7D2FE;
+        }
+
+        .pill-get {
+            background: var(--pill-get-bg);
+            color: var(--pill-get-text);
+            border-color: var(--pill-get-border);
+        }
+
+        .pill-post {
+            background: var(--pill-post-bg);
+            color: var(--pill-post-text);
+            border-color: var(--pill-post-border);
+        }
+
+        .pill-put {
+            background: var(--pill-put-bg);
+            color: var(--pill-put-text);
+            border-color: var(--pill-put-border);
+        }
+
+        .pill-delete {
+            background: var(--pill-delete-bg);
+            color: var(--pill-delete-text);
+            border-color: var(--pill-delete-border);
+        }
+
+        .pill-patch {
+            background: var(--pill-patch-bg);
+            color: var(--pill-patch-text);
+            border-color: var(--pill-patch-border);
+        }
+
+        .log-url {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 16px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .status-2xx {
+            background: #10B981;
+        }
+
+        .status-3xx {
+            background: #3B82F6;
+        }
+
+        .status-4xx {
+            background: #F59E0B;
+        }
+
+        .status-5xx {
+            background: #EF4444;
+        }
+
+        .response-time {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .time-fast {
+            color: #10B981;
+        }
+
+        .time-medium {
+            color: #F59E0B;
+        }
+
+        .time-slow {
+            color: #EF4444;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px 28px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+        }
+
+        .pagination button {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #F3F4F6;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination span {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.3;
+            margin-bottom: 16px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .empty-state small {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-muted);
+            gap: 10px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="header-left">
+            <div class="header-icon">🔍</div>
+            <span class="header-title">API Log Viewer</span>
+            <span id="connectionBadge" class="connection-badge connected">
+                <span class="connection-dot online" id="connectionDot"></span>
+                <span id="connectionText">Connected</span>
+            </span>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-auto-scroll" id="autoScrollBtn" onclick="toggleAutoScroll()">
+                ↓ Auto-refresh: ON
+            </button>
+            <button class="btn btn-clear" onclick="clearLogs()">🗑 Clear Logs</button>
+        </div>
+    </div>
+
+    <!-- STATS BAR -->
+    <div class="stats-bar">
+        <div class="stat-item"><span class="stat-label">TOTAL</span><span class="stat-value" id="statTotal">0</span>
+        </div>
+        <div class="stat-item"><span class="stat-label">SUCCESS</span><span class="stat-value green"
+                id="statSuccess">0</span></div>
+        <div class="stat-item"><span class="stat-label">ERRORS</span><span class="stat-value red"
+                id="statErrors">0</span></div>
+        <div class="stat-item"><span class="stat-label">AVG RESPONSE</span><span class="stat-value"
+                id="statAvgTime">0ms</span></div>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="filter-bar">
+        <button class="filter-btn active" onclick="setFilter('all', this)">📋 All</button>
+        <button class="filter-btn" onclick="setFilter('requests', this)">📤 Requests</button>
+        <button class="filter-btn" onclick="setFilter('responses', this)">✓ Success</button>
+        <button class="filter-btn" onclick="setFilter('errors', this)">✕ Errors</button>
+    </div>
+
+    <!-- LOG LIST -->
+    <div class="log-list" id="logList">
+        <div class="loading" id="loadingState">
+            <div class="spinner"></div>
+            <span>Connecting to backend...</span>
+        </div>
+    </div>
+
+    <!-- PAGINATION -->
+    <div class="pagination" id="paginationBar" style="display:none;">
+        <button id="prevBtn" onclick="changePage(-1)">← Previous</button>
+        <span id="pageInfo">Page 1</span>
+        <button id="nextBtn" onclick="changePage(1)">Next →</button>
+    </div>
+
+    <script>
+        // ══════════════════════════════════════════════════════════
+        // CONFIG
+        // ══════════════════════════════════════════════════════════
+        const API_BASE = 'http://localhost:5000/api/logs';
+        let autoRefresh = true;
+        let currentFilter = 'all';
+        let currentPage = 1;
+        let totalPages = 1;
+        let pollInterval = null;
+        let isConnected = false;
+
+        // ══════════════════════════════════════════════════════════
+        // INIT
+        // ══════════════════════════════════════════════════════════
+        async function init() {
+            await fetchLogs();
+            await fetchStats();
+            pollInterval = setInterval(pollRefresh, 5000);
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // FETCH LOGS (paginated, limit 50)
+        // ══════════════════════════════════════════════════════════
+        async function fetchLogs() {
+            try {
+                let params = `?limit=50&page=${currentPage}`;
+                if (currentFilter !== 'all') params += `&filter=${currentFilter}`;
+
+                const res = await fetch(`${API_BASE}${params}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    totalPages = data.totalPages || 1;
+                    renderLogs(data.data);
+                    updatePagination();
+                    setConnected(true);
+                }
+            } catch (err) {
+                setConnected(false);
+                document.getElementById('loadingState').innerHTML = `
+                    <div class="empty-state">
+                        <p>⚠️ Cannot connect to backend</p>
+                        <small>Make sure backend is running on localhost:5000</small>
+                    </div>
+                `;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // POLL REFRESH (every 5s — only page 1)
+        // ══════════════════════════════════════════════════════════
+        async function pollRefresh() {
+            if (!autoRefresh) return;
+            if (currentPage !== 1) return; // Only auto-refresh first page
+            await fetchLogs();
+            await fetchStats();
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // FETCH STATS (single aggregation)
+        // ══════════════════════════════════════════════════════════
+        async function fetchStats() {
+            try {
+                const res = await fetch(`${API_BASE}/stats`);
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('statTotal').textContent = data.data.totalRequests.toLocaleString();
+                    document.getElementById('statSuccess').textContent = data.data.successRequests.toLocaleString();
+                    document.getElementById('statErrors').textContent = data.data.errorRequests.toLocaleString();
+                    document.getElementById('statAvgTime').textContent = data.data.avgResponseTime + 'ms';
+                }
+            } catch (err) { /* silent */ }
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // RENDER LOGS
+        // ══════════════════════════════════════════════════════════
+        function renderLogs(logs) {
+            const container = document.getElementById('logList');
+
+            if (logs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        <p>No logs recorded yet</p>
+                        <small>API requests will appear here in real-time</small>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = logs.map((log) => {
+                const methodClass = `pill-${log.method.toLowerCase()}`;
+                const statusClass = getStatusClass(log.status);
+                const timeClass = getTimeClass(log.responseTime);
+                const isError = log.status >= 400 ? 'error-row' : '';
+
+                return `
+                    <div class="log-row ${isError}">
+                        <div><span class="pill pill-api">API</span></div>
+                        <div><span class="pill ${methodClass}">${log.method}</span></div>
+                        <div class="log-url" title="${log.url}">${log.url}</div>
+                        <div style="text-align:right"><span class="status-badge ${statusClass}">${log.status}</span></div>
+                        <div class="response-time ${timeClass}">${log.responseTime}ms</div>
+                        <div class="timestamp">${formatTime(log.timestamp)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // PAGINATION
+        // ══════════════════════════════════════════════════════════
+        function updatePagination() {
+            const bar = document.getElementById('paginationBar');
+            bar.style.display = totalPages > 1 ? 'flex' : 'none';
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} / ${totalPages}`;
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function changePage(dir) {
+            currentPage += dir;
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            fetchLogs();
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // HELPERS
+        // ══════════════════════════════════════════════════════════
+        function getStatusClass(s) {
+            if (s < 300) return 'status-2xx';
+            if (s < 400) return 'status-3xx';
+            if (s < 500) return 'status-4xx';
+            return 'status-5xx';
+        }
+
+        function getTimeClass(t) {
+            if (t < 100) return 'time-fast';
+            if (t < 500) return 'time-medium';
+            return 'time-slow';
+        }
+
+        function formatTime(ts) {
+            return new Date(ts).toLocaleTimeString('en-IN', {
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            });
+        }
+
+        function setConnected(connected) {
+            isConnected = connected;
+            const badge = document.getElementById('connectionBadge');
+            const dot = document.getElementById('connectionDot');
+            const text = document.getElementById('connectionText');
+            if (connected) {
+                badge.className = 'connection-badge connected';
+                dot.className = 'connection-dot online';
+                text.textContent = 'Connected';
+            } else {
+                badge.className = 'connection-badge disconnected';
+                dot.className = 'connection-dot offline';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // ACTIONS
+        // ══════════════════════════════════════════════════════════
+        function toggleAutoScroll() {
+            autoRefresh = !autoRefresh;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.textContent = autoRefresh ? '↓ Auto-refresh: ON' : '⏸ Auto-refresh: OFF';
+            btn.className = autoRefresh ? 'btn btn-auto-scroll' : 'btn btn-auto-scroll off';
+        }
+
+        function setFilter(filter, el) {
+            currentFilter = filter;
+            currentPage = 1;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            fetchLogs();
+        }
+
+        async function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs?')) return;
+            try {
+                await fetch(API_BASE, { method: 'DELETE' });
+                currentPage = 1;
+                await fetchLogs();
+                await fetchStats();
+            } catch (err) {
+                alert('Failed to clear logs');
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // START
+        // ══════════════════════════════════════════════════════════
+        init();
+    </script>
+</body>
+
+</html>

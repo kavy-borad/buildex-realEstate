@@ -25,8 +25,10 @@ import {
     FileText,
     ThumbsUp,
     ThumbsDown,
-    Edit3
+    Edit3,
+    Printer
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const PublicQuotationView = () => {
     const { token } = useParams<{ token: string }>();
@@ -39,7 +41,8 @@ export const PublicQuotationView = () => {
         queryKey: ['publicQuotation', token],
         queryFn: () => publicQuotationApi.getQuotation(token!),
         enabled: !!token,
-        retry: false
+        retry: false,
+        refetchOnWindowFocus: false, // Prevents the API from re-running every time the user clicks on the browser tab
     });
 
     const mutation = useMutation({
@@ -115,225 +118,297 @@ export const PublicQuotationView = () => {
                 </div>
             </header>
 
-            <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+            <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 flex flex-col lg:flex-row gap-8 items-start">
 
-                {/* Status Banner (if responded) */}
-                {!isActionable && (
-                    <div className={cn(
-                        "mb-8 p-5 rounded-xl flex items-center gap-4 shadow-sm border animate-in fade-in slide-in-from-top-4 duration-500",
-                        quotation.clientStatus === 'approved' ? 'bg-emerald-50 border-emerald-100 text-emerald-900' :
-                            quotation.clientStatus === 'rejected' ? 'bg-red-50 border-red-100 text-red-900' :
-                                'bg-blue-50 border-blue-100 text-blue-900'
-                    )}>
+                {/* Main Content Area */}
+                <div className="flex-1 w-full order-2 lg:order-1 min-w-0">
+                    {/* Status Banner (if responded) */}
+                    {!isActionable && (
                         <div className={cn(
-                            "p-2 rounded-full shrink-0",
-                            quotation.clientStatus === 'approved' ? 'bg-emerald-100 text-emerald-600' :
-                                quotation.clientStatus === 'rejected' ? 'bg-red-100 text-red-600' :
-                                    'bg-blue-100 text-blue-600'
+                            "mb-8 p-5 rounded-xl flex items-center gap-4 shadow-sm border animate-in fade-in slide-in-from-top-4 duration-500",
+                            quotation.clientStatus === 'approved' ? 'bg-emerald-50 border-emerald-100 text-emerald-900' :
+                                quotation.clientStatus === 'rejected' ? 'bg-red-50 border-red-100 text-red-900' :
+                                    'bg-blue-50 border-blue-100 text-blue-900'
                         )}>
-                            {quotation.clientStatus === 'approved' && <CheckCircle2 className="h-6 w-6" />}
-                            {quotation.clientStatus === 'rejected' && <XCircle className="h-6 w-6" />}
-                            {quotation.clientStatus === 'changes-requested' && <MessageSquare className="h-6 w-6" />}
-                        </div>
-                        <div>
-                            <p className="font-bold text-lg leading-tight">
-                                {quotation.clientStatus === 'approved' ? 'Quotation Approved' :
-                                    quotation.clientStatus === 'rejected' ? 'Quotation Rejected' :
-                                        'Changes Requested'}
-                            </p>
-                            <p className="text-sm opacity-80 mt-1">
-                                You responded on {quotation.clientFeedback?.respondedAt ? format(new Date(quotation.clientFeedback.respondedAt), 'PPP p') : 'recently'}.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Document Paper */}
-                <div className="bg-white shadow-xl shadow-slate-200/60 rounded-xl overflow-hidden border border-slate-100 min-h-[800px] print:shadow-none print:border-none print:m-0 print:p-0 transition-all duration-300">
-
-                    {/* Document Header */}
-                    <div className="p-8 md:p-12 border-b border-gray-100 bg-white">
-                        <div className="flex flex-col md:flex-row justify-between md:items-start gap-8">
-                            <div>
-                                <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">Quotation</h1>
-                                <p className="text-slate-500 font-medium text-lg">#{quotation.quotationNumber}</p>
-                                <div className="mt-8 space-y-1 text-sm text-slate-600">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">From</p>
-                                    <p className="text-xl font-bold text-slate-900">BuildEx Construction</p>
-                                    <p className="text-slate-600">123 Builder Street, Tech City</p>
-                                    <p className="text-slate-600">contact@buildex.com | +91 98765 43210</p>
-                                </div>
+                            <div className={cn(
+                                "p-2 rounded-full shrink-0",
+                                quotation.clientStatus === 'approved' ? 'bg-emerald-100 text-emerald-600' :
+                                    quotation.clientStatus === 'rejected' ? 'bg-red-100 text-red-600' :
+                                        'bg-blue-100 text-blue-600'
+                            )}>
+                                {quotation.clientStatus === 'approved' && <CheckCircle2 className="h-6 w-6" />}
+                                {quotation.clientStatus === 'rejected' && <XCircle className="h-6 w-6" />}
+                                {quotation.clientStatus === 'changes-requested' && <MessageSquare className="h-6 w-6" />}
                             </div>
-                            <div className="text-left md:text-right space-y-1">
-                                <div className="inline-block px-4 py-1.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-sm mb-6 border border-slate-200">
-                                    {quotation.clientStatus === 'pending' ? 'Pending Review' : quotation.clientStatus?.replace('-', ' ')}
+                            <div>
+                                <p className="font-bold text-lg leading-tight">
+                                    {quotation.clientStatus === 'approved' ? 'Quotation Approved' :
+                                        quotation.clientStatus === 'rejected' ? 'Quotation Rejected' :
+                                            'Changes Requested'}
+                                </p>
+                                <p className="text-sm opacity-80 mt-1">
+                                    You responded on {quotation.clientFeedback?.respondedAt ? format(new Date(quotation.clientFeedback.respondedAt), 'PPP p') : 'recently'}.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Main Document Paper */}
+                    <div className="bg-white shadow-xl shadow-slate-200/60 rounded-xl overflow-hidden border border-slate-100 min-h-[800px] print:shadow-none print:border-none print:m-0 print:p-0 transition-all duration-300">
+
+                        {/* Document Header */}
+                        <div className="p-8 md:p-12 border-b border-gray-100 bg-white">
+                            <div className="flex flex-col md:flex-row justify-between md:items-start gap-8">
+                                <div>
+                                    <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">Quotation</h1>
+                                    <p className="text-slate-500 font-medium text-lg">#{quotation.quotationNumber}</p>
+                                    <div className="mt-8 space-y-1 text-sm text-slate-600">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">From</p>
+                                        <p className="text-xl font-bold text-slate-900">BuildEx Construction</p>
+                                        <p className="text-slate-600">123 Builder Street, Tech City</p>
+                                        <p className="text-slate-600">contact@buildex.com | +91 98765 43210</p>
+                                    </div>
                                 </div>
-                                <div className="space-y-1 text-sm text-slate-600">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Bill To</p>
-                                    <p className="text-xl font-bold text-slate-900">{quotation.clientDetails?.name || 'Valued Client'}</p>
-                                    <p className="text-slate-600">{quotation.clientDetails?.siteAddress || quotation.clientDetails?.address}</p>
-                                    <p className="text-slate-600">{quotation.clientDetails?.email}</p>
-                                    <p className="text-slate-600">{quotation.clientDetails?.phone}</p>
-                                </div>
-                                <div className="mt-6 pt-6 border-t border-dashed border-gray-200">
-                                    <div className="flex justify-between md:justify-end gap-10 text-sm">
-                                        <div className="text-left md:text-right">
-                                            <p className="text-xs text-slate-400 uppercase font-semibold">Date</p>
-                                            <p className="font-semibold text-slate-900 mt-1">{quotation.createdAt ? format(new Date(quotation.createdAt), 'dd MMM yyyy') : 'N/A'}</p>
-                                        </div>
-                                        <div className="text-left md:text-right">
-                                            <p className="text-xs text-slate-400 uppercase font-semibold">Valid Until</p>
-                                            <p className="font-semibold text-slate-900 mt-1">{quotation.validTill ? format(new Date(quotation.validTill), 'dd MMM yyyy') : 'N/A'}</p>
+                                <div className="text-left md:text-right space-y-1">
+                                    <div className="inline-block px-4 py-1.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-sm mb-6 border border-slate-200">
+                                        {quotation.clientStatus === 'pending' ? 'Pending Review' : quotation.clientStatus?.replace('-', ' ')}
+                                    </div>
+                                    <div className="space-y-1 text-sm text-slate-600">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Bill To</p>
+                                        <p className="text-xl font-bold text-slate-900">{quotation.clientDetails?.name || 'Valued Client'}</p>
+                                        <p className="text-slate-600">{quotation.clientDetails?.siteAddress || quotation.clientDetails?.address}</p>
+                                        <p className="text-slate-600">{quotation.clientDetails?.email}</p>
+                                        <p className="text-slate-600">{quotation.clientDetails?.phone}</p>
+                                    </div>
+                                    <div className="mt-6 pt-6 border-t border-dashed border-gray-200">
+                                        <div className="flex justify-between md:justify-end gap-10 text-sm">
+                                            <div className="text-left md:text-right">
+                                                <p className="text-xs text-slate-400 uppercase font-semibold">Date</p>
+                                                <p className="font-semibold text-slate-900 mt-1">{quotation.createdAt ? format(new Date(quotation.createdAt), 'dd MMM yyyy') : 'N/A'}</p>
+                                            </div>
+                                            <div className="text-left md:text-right">
+                                                <p className="text-xs text-slate-400 uppercase font-semibold">Valid Until</p>
+                                                <p className="font-semibold text-slate-900 mt-1">{quotation.validTill ? format(new Date(quotation.validTill), 'dd MMM yyyy') : 'N/A'}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Project Details Grid */}
-                    <div className="bg-slate-50/80 p-6 md:p-8 border-b border-gray-100">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Project Overview</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
-                            <div>
-                                <p className="text-xs text-slate-500 mb-1.5">Project Type</p>
-                                <p className="font-bold text-slate-800">{quotation.projectDetails.projectType}</p>
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 mb-1.5">Total Area</p>
-                                <p className="font-bold text-slate-800">{quotation.projectDetails.builtUpArea} {quotation.projectDetails.areaUnit}</p>
-                            </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <p className="text-xs text-slate-500 mb-1.5">Site Location</p>
-                                <p className="font-bold text-slate-800 truncate" title={`${quotation.projectDetails.city}, ${quotation.projectDetails.area}`}>
-                                    {quotation.projectDetails.city}, {quotation.projectDetails.area}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 mb-1.5">Est. Duration</p>
-                                <p className="font-bold text-slate-800">{quotation.projectDetails.projectDuration || 'N/A'}</p>
+                        {/* Project Details Grid */}
+                        <div className="bg-slate-50/80 p-6 md:p-8 border-b border-gray-100">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Project Overview</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
+                                <div>
+                                    <p className="text-xs text-slate-500 mb-1.5">Project Type</p>
+                                    <p className="font-bold text-slate-800">{quotation.projectDetails.projectType}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 mb-1.5">Total Area</p>
+                                    <p className="font-bold text-slate-800">{quotation.projectDetails.builtUpArea} {quotation.projectDetails.areaUnit}</p>
+                                </div>
+                                <div className="col-span-2 md:col-span-1">
+                                    <p className="text-xs text-slate-500 mb-1.5">Site Location</p>
+                                    <p className="font-bold text-slate-800 truncate" title={`${quotation.projectDetails.city}, ${quotation.projectDetails.area}`}>
+                                        {quotation.projectDetails.city}, {quotation.projectDetails.area}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 mb-1.5">Est. Duration</p>
+                                    <p className="font-bold text-slate-800">{quotation.projectDetails.projectDuration || 'N/A'}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Items Table */}
-                    <div className="p-8">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Scope of Work</h3>
-                        <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                                    <tr>
-                                        <th className="px-6 py-4">Description</th>
-                                        <th className="px-6 py-4 text-right w-32">Quantity</th>
-                                        <th className="px-6 py-4 text-right w-36">Rate</th>
-                                        <th className="px-6 py-4 text-right w-44">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {quotation.costItems.map((item, index) => (
-                                        <tr key={index} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="px-6 py-4 text-slate-800 font-medium">{item.itemName}</td>
-                                            <td className="px-6 py-4 text-right text-slate-600 font-mono">{item.quantity} {item.unit}</td>
-                                            <td className="px-6 py-4 text-right text-slate-600 font-mono">₹{item.rate.toLocaleString()}</td>
-                                            <td className="px-6 py-4 text-right text-slate-900 font-bold font-mono">₹{item.total.toLocaleString()}</td>
+                        {/* Items Table */}
+                        <div className="p-8">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Scope of Work</h3>
+                            <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-6 py-4">Description</th>
+                                            <th className="px-6 py-4 text-right w-32">Quantity</th>
+                                            <th className="px-6 py-4 text-right w-36">Rate</th>
+                                            <th className="px-6 py-4 text-right w-44">Amount</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {quotation.costItems.map((item, index) => (
+                                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="px-6 py-4 text-slate-800 font-medium">{item.itemName}</td>
+                                                <td className="px-6 py-4 text-right text-slate-600 font-mono">{item.quantity} {item.unit}</td>
+                                                <td className="px-6 py-4 text-right text-slate-600 font-mono">₹{item.rate.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right text-slate-900 font-bold font-mono">₹{item.total.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        {/* Totals Section */}
-                        <div className="mt-10 flex flex-col md:flex-row justify-end">
-                            <div className="w-full md:w-[400px] bg-slate-50 rounded-xl p-6 space-y-4 border border-slate-100">
-                                <div className="flex justify-between text-slate-600">
-                                    <span>Subtotal</span>
-                                    <span className="font-mono font-medium">₹{quotation.summary.subtotal.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between text-slate-600">
-                                    <span>GST ({quotation.summary.gstPercentage}%)</span>
-                                    <span className="font-mono font-medium">₹{quotation.summary.gstAmount.toLocaleString()}</span>
-                                </div>
-                                {(quotation.summary.discount > 0) && (
-                                    <div className="flex justify-between text-emerald-600">
-                                        <span>Discount</span>
-                                        <span className="font-mono font-medium">-₹{quotation.summary.discount.toLocaleString()}</span>
+                            {/* Totals Section */}
+                            <div className="mt-10 flex flex-col md:flex-row justify-end">
+                                <div className="w-full md:w-[400px] bg-slate-50 rounded-xl p-6 space-y-4 border border-slate-100">
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Subtotal</span>
+                                        <span className="font-mono font-medium">₹{quotation.summary.subtotal.toLocaleString()}</span>
                                     </div>
-                                )}
-                                <div className="border-t border-slate-200 my-2"></div>
-                                <div className="flex justify-between text-slate-900 items-baseline">
-                                    <span className="font-bold text-lg">Total Amount</span>
-                                    <span className="font-mono font-bold text-2xl">₹{quotation.summary.grandTotal.toLocaleString()}</span>
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>GST ({quotation.summary.gstPercentage}%)</span>
+                                        <span className="font-mono font-medium">₹{quotation.summary.gstAmount.toLocaleString()}</span>
+                                    </div>
+                                    {(quotation.summary.discount > 0) && (
+                                        <div className="flex justify-between text-emerald-600">
+                                            <span>Discount</span>
+                                            <span className="font-mono font-medium">-₹{quotation.summary.discount.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="border-t border-slate-200 my-2"></div>
+                                    <div className="flex justify-between text-slate-900 items-baseline">
+                                        <span className="font-bold text-lg">Total Amount</span>
+                                        <span className="font-mono font-bold text-2xl">₹{quotation.summary.grandTotal.toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 text-right mt-1">Inclusive of all taxes</p>
                                 </div>
-                                <p className="text-xs text-slate-400 text-right mt-1">Inclusive of all taxes</p>
+                            </div>
+
+                            {/* Terms */}
+                            {quotation.termsAndConditions && (
+                                <div className="mt-16 pt-8 border-t border-slate-100 relative">
+                                    <FileText className="absolute top-8 left-0 text-slate-200 w-12 h-12 -z-10 opacity-50" />
+                                    <h4 className="font-bold text-slate-800 mb-3">Terms & Conditions</h4>
+                                    <p className="text-sm text-slate-500 leading-relaxed whitespace-pre-wrap max-w-3xl">
+                                        {quotation.termsAndConditions}
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="mt-16 text-center text-xs text-slate-400">
+                                <p>This is a computer generated document. Signatures are not required.</p>
+                                <p className="mt-1">© {new Date().getFullYear()} BuildEx Construction. All rights reserved.</p>
                             </div>
                         </div>
+                    </div>
 
-                        {/* Terms */}
-                        {quotation.termsAndConditions && (
-                            <div className="mt-16 pt-8 border-t border-slate-100 relative">
-                                <FileText className="absolute top-8 left-0 text-slate-200 w-12 h-12 -z-10 opacity-50" />
-                                <h4 className="font-bold text-slate-800 mb-3">Terms & Conditions</h4>
-                                <p className="text-sm text-slate-500 leading-relaxed whitespace-pre-wrap max-w-3xl">
-                                    {quotation.termsAndConditions}
+                    {/* Right Side Panel */}
+                    <div className="w-full lg:w-[400px] shrink-0 sticky top-24 order-1 lg:order-2 space-y-4 print:hidden z-10">
+                        <Card className="w-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] border-0 overflow-hidden rounded-2xl">
+                            <div className="bg-[#0f172a] px-6 py-10 text-center text-white">
+                                <p className="text-xs font-bold tracking-widest text-[#94a3b8] uppercase mb-4">Total Payable</p>
+                                <p className="text-[36px] leading-none font-extrabold tracking-tight">
+                                    ₹{quotation.summary.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).replace(/\.0$/, '')}
                                 </p>
                             </div>
-                        )}
 
-                        <div className="mt-16 text-center text-xs text-slate-400">
-                            <p>This is a computer generated document. Signatures are not required.</p>
-                            <p className="mt-1">© {new Date().getFullYear()} BuildEx Construction. All rights reserved.</p>
-                        </div>
+                            <div className="p-6 bg-white space-y-8">
+                                <div>
+                                    <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
+                                    <div className="space-y-3">
+                                        {isActionable ? (
+                                            <>
+                                                <Button
+                                                    className="w-full bg-[#10b981] hover:bg-[#059669] text-white h-14 rounded-xl gap-2 font-semibold text-base shadow-sm hover:shadow transition-all"
+                                                    onClick={() => setModalOpen('approve')}
+                                                >
+                                                    <ThumbsUp className="w-5 h-5 bg-transparent" />
+                                                    Approve Quotation
+                                                </Button>
+
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full h-14 rounded-xl gap-2 font-semibold text-base text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                                                    onClick={() => window.print()}
+                                                >
+                                                    <Printer className="w-5 h-5 text-slate-500" />
+                                                    Print / Save as PDF
+                                                </Button>
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <Button
+                                                        variant="outline"
+                                                        className="h-14 rounded-xl gap-2 font-semibold text-base text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                                                        onClick={() => setModalOpen('changes')}
+                                                    >
+                                                        <Edit3 className="w-4 h-4 text-slate-500" />
+                                                        Changes
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        className="h-14 rounded-xl gap-2 font-semibold text-base text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                                                        onClick={() => setModalOpen('reject')}
+                                                    >
+                                                        <ThumbsDown className="w-4 h-4 text-slate-500" />
+                                                        Reject
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full h-14 rounded-xl gap-2 font-semibold text-base text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all"
+                                                onClick={() => window.print()}
+                                            >
+                                                <Printer className="w-5 h-5 text-slate-500" />
+                                                Print / Save as PDF
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {isActionable && (
+                                    <>
+                                        <div className="h-px bg-slate-100" />
+
+                                        <div>
+                                            <h3 className="text-[15px] font-bold text-slate-700 mb-3">Response Category</h3>
+                                            <Select onValueChange={(val) => setModalOpen(val as any)}>
+                                                <SelectTrigger className="w-full h-12 border-slate-200 rounded-xl bg-slate-50/50 text-slate-600 focus:ring-0 focus:ring-offset-0">
+                                                    <SelectValue placeholder="Select a response type..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                                                    <SelectItem value="approve" className="font-medium cursor-pointer">Approve Quotation</SelectItem>
+                                                    <SelectItem value="changes" className="font-medium cursor-pointer">Request Changes</SelectItem>
+                                                    <SelectItem value="reject" className="font-medium cursor-pointer">Reject Quotation</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </Card>
+                        <p className="text-center text-[13px] font-medium text-slate-400 mt-6 pb-6">
+                            Need help? Contact support at +91 98765 43210
+                        </p>
                     </div>
                 </div>
+
+                {/* Modals */}
+                <FeedbackOptionsModal
+                    isOpen={feedbackOptionsOpen}
+                    onClose={() => setFeedbackOptionsOpen(false)}
+                    onSelectOption={(option) => {
+                        setFeedbackOptionsOpen(false);
+                        setModalOpen(option);
+                    }}
+                />
+                <ApproveModal
+                    isOpen={modalOpen === 'approve'}
+                    onClose={() => setModalOpen(null)}
+                    onConfirm={handleApprove}
+                    amount={quotation?.summary?.grandTotal || 0}
+                />
+                <RejectModal
+                    isOpen={modalOpen === 'reject'}
+                    onClose={() => setModalOpen(null)}
+                    onConfirm={handleReject}
+                />
+                <RequestChangesModal
+                    isOpen={modalOpen === 'changes'}
+                    onClose={() => setModalOpen(null)}
+                    onConfirm={handleRequestChanges}
+                />
             </div>
-
-            {/* Sticky Action Bar */}
-            {isActionable && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] z-50 print:hidden transition-all duration-300">
-                    <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="hidden sm:flex flex-col">
-                            <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Total Payable</span>
-                            <span className="font-extrabold text-slate-900 text-2xl tracking-tight">₹{quotation.summary.grandTotal.toLocaleString()}</span>
-                        </div>
-                        <div className="flex w-full sm:w-auto gap-3">
-                            <Button
-                                size="lg"
-                                className="w-full sm:w-auto bg-slate-900 hover:bg-black text-white min-w-[200px] h-12 px-8 gap-2 shadow-lg shadow-slate-900/20 hover:shadow-xl hover:shadow-slate-900/30 rounded-xl transition-all transform hover:-translate-y-0.5"
-                                onClick={() => setFeedbackOptionsOpen(true)}
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                                Respond / Give Feedback
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modals */}
-            <FeedbackOptionsModal
-                isOpen={feedbackOptionsOpen}
-                onClose={() => setFeedbackOptionsOpen(false)}
-                onSelectOption={(option) => {
-                    setFeedbackOptionsOpen(false);
-                    setModalOpen(option);
-                }}
-            />
-            <ApproveModal
-                isOpen={modalOpen === 'approve'}
-                onClose={() => setModalOpen(null)}
-                onConfirm={handleApprove}
-                amount={quotation?.summary?.grandTotal || 0}
-            />
-            <RejectModal
-                isOpen={modalOpen === 'reject'}
-                onClose={() => setModalOpen(null)}
-                onConfirm={handleReject}
-            />
-            <RequestChangesModal
-                isOpen={modalOpen === 'changes'}
-                onClose={() => setModalOpen(null)}
-                onConfirm={handleRequestChanges}
-            />
         </div>
     );
 };

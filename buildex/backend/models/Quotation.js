@@ -34,6 +34,15 @@ const costItemSchema = new mongoose.Schema({
     }
 }, { _id: false });
 
+const clientDetailsSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    phone: { type: String, required: true },
+    email: { type: String },
+    siteAddress: { type: String },
+    quotationDate: { type: String },
+    validTill: { type: String }
+}, { _id: false });
+
 const projectDetailsSchema = new mongoose.Schema({
     projectType: {
         type: String,
@@ -106,11 +115,16 @@ const quotationSchema = new mongoose.Schema({
         required: true
     },
 
-    // Client Reference
+    // Client Details (Frontend Structure)
+    clientDetails: {
+        type: clientDetailsSchema,
+        required: true
+    },
+    // Optional Reference to Client Collection (if user is registered as a regular client later)
     client: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Client',
-        required: true
+        required: false
     },
 
     // Project Details

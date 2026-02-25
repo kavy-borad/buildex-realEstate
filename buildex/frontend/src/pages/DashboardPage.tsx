@@ -32,78 +32,93 @@ export default function DashboardPage() {
   const { scrollYProgress } = useScroll({ target: containerRef });
   const y = useTransform(scrollYProgress, [0, 1], [0, -50]);
 
-  const [statsData, setStatsData] = useState<any>(null);
+  const [projectStatsData, setProjectStatsData] = useState<any>(null);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [chartsData, setChartsData] = useState<any>(null);
+  const [overviewData, setOverviewData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
   const [selectedChart, setSelectedChart] = useState<'revenue' | 'projects'>('revenue');
 
+  // Fetch charts data (reusable for filter changes)
+  const fetchCharts = async (filter: string) => {
+    try {
+      const chartsRes = await dashboardApi.getCharts(filter);
+      if (chartsRes.success && chartsRes.data) {
+        setChartsData(chartsRes.data);
+      }
+    } catch (error) {
+      console.error('Failed to load charts', error);
+    }
+  };
+
+  // Initial load - all 3 endpoints in parallel, 1 call each
   useEffect(() => {
-    const fetchStats = async () => {
+    let cancelled = false;
+
+    const fetchDashboardData = async () => {
       try {
-        const response = await dashboardApi.getStats();
-        if (response.success && response.data) {
-          setStatsData(response.data);
+        const [overviewRes, projectStatsRes, activitiesRes, chartsRes] = await Promise.all([
+          dashboardApi.getOverview(),
+          dashboardApi.getProjectStats(),
+          dashboardApi.getRecentActivities(),
+          dashboardApi.getCharts(timeFilter)
+        ]);
+
+        if (!cancelled) {
+          if (overviewRes.success && overviewRes.data) {
+            setOverviewData(overviewRes.data);
+          }
+          if (projectStatsRes.success && projectStatsRes.data) {
+            setProjectStatsData(projectStatsRes.data);
+          }
+          if (activitiesRes.success && activitiesRes.data) {
+            setRecentActivities(activitiesRes.data);
+          }
+          if (chartsRes.success && chartsRes.data) {
+            setChartsData(chartsRes.data);
+          }
         }
       } catch (error) {
-        console.error('Failed to load dashboard stats', error);
+        if (!cancelled) {
+          console.error('Failed to load dashboard data', error);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    fetchStats();
-  }, []);
+    fetchDashboardData();
 
-  // Process chart data based on filter
-  const getChartData = () => {
-    if (!statsData?.revenueChart) {
-      // Fallback mock data if backend isn't updated yet or no data
-      const mockData = [
-        { name: 'Jan', value: 0 },
-        { name: 'Feb', value: 0 },
-        { name: 'Mar', value: 0 },
-        { name: 'Apr', value: 0 },
-        { name: 'May', value: 0 },
-        { name: 'Jun', value: 0 },
-        { name: 'Jul', value: statsData?.overview?.totalRevenue || 0 },
-      ];
-      return mockData;
-    }
+    return () => { cancelled = true; };
+  }, []); // Only on mount
 
+  // When filter changes, fetch ONLY charts (no duplicate calls to other endpoints)
+  useEffect(() => {
+    // Skip the initial render (already fetched above)
+    if (loading) return;
+    fetchCharts(timeFilter);
+  }, [timeFilter]);
 
+  // Dynamic chart data from API
+  const chartData = chartsData
+    ? (selectedChart === 'revenue' ? chartsData.revenueChart : chartsData.projectChart)
+    : [];
 
-    // Select data based on chart type
-    const data = selectedChart === 'revenue'
-      ? statsData.revenueChart
-      : (statsData.projectChart || []);
-
-    if (timeFilter === '30days') {
-      return data;
-    } else if (timeFilter === '7days') {
-      return data.slice(-7);
-    } else if (timeFilter === 'today') {
-      // Just return the last day, but ensure at least 2 points for chart to render line
-      const today = data.slice(-1)[0];
-      return [
-        { ...today, name: 'Start', value: 0 },
-        { ...today, name: 'Now' }
-      ];
-    }
-    return data;
-  };
-
-  const chartData = getChartData();
-
-  const overview = statsData?.overview || {
+  // Overview from /api/dashboard/overview
+  const overview = overviewData || {
     totalRevenue: 0,
-    totalQuotations: 0,
-    totalClients: 0,
-    totalPending: 0
+    totalQuotations: 0
   };
 
-  const quotationStats = statsData?.quotationStats || {
+  // Project stats from /api/dashboard/project-stats
+  const quotationStats = projectStatsData || {
+    working: 0,
     draft: 0,
     sent: 0,
-    accepted: 0
+    accepted: 0,
+    rejected: 0
   };
 
   const stats = [
@@ -402,7 +417,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto pr-2 space-y-4 max-h-[300px] scrollbar-thin scrollbar-thumb-border">
-              {(!statsData?.recentActivity || statsData.recentActivity.length === 0) ? (
+              {recentActivities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-8">
                   <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
                     <FileText className="w-6 h-6 text-muted-foreground" />
@@ -411,7 +426,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted-foreground mt-1">Create a quotation to get started.</p>
                 </div>
               ) : (
-                statsData.recentActivity.map((item: any) => (
+                recentActivities.map((item: any) => (
                   <div key={item._id} className="group flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${item.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
                       {item.type === 'invoice' ? <CheckCircle2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}

@@ -29,8 +29,20 @@ export const settingsApi = {
 };
 
 export const dashboardApi = {
-    getStats: async (): Promise<ApiResponse<any>> => {
-        return apiRequest<any>('/dashboard/stats', 'GET');
+    getOverview: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>('/dashboard/overview', 'GET');
+    },
+    getProjectStats: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>('/dashboard/project-stats', 'GET');
+    },
+    getRecentActivities: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>('/dashboard/recent-activities', 'GET');
+    },
+    getCharts: async (filter: string = '30days'): Promise<ApiResponse<any>> => {
+        return apiRequest<any>(`/dashboard/charts?filter=${filter}`, 'GET');
+    },
+    getTemplates: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>('/templates', 'GET');
     }
 };
 

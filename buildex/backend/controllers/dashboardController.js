@@ -6,202 +6,230 @@
 
 import Quotation from '../models/Quotation.js';
 import Invoice from '../models/Invoice.js';
-import Client from '../models/Client.js';
-import Payment from '../models/Payment.js';
-import Notification from '../models/Notification.js';
 
-export const getDashboardStats = async (req, res) => {
+/**
+ * ─────────────────────────────────────────────────────────────
+ * GET /api/dashboard/project-stats
+ * Returns project status breakdown for grid cards
+ * ─────────────────────────────────────────────────────────────
+ */
+export const getProjectStats = async (req, res) => {
+    const startTime = Date.now();
+    console.log(`📊 [Dashboard] GET /project-stats → Request received`);
+
     try {
-        // 1. Basic Counts
-        const totalQuotations = await Quotation.countDocuments();
-        const totalInvoices = await Invoice.countDocuments();
-        const totalClients = await Client.countDocuments();
+        const [accepted, sent, rejected, working] = await Promise.all([
+            Quotation.countDocuments({ status: 'accepted' }),
+            Quotation.countDocuments({ status: 'sent' }),
+            Quotation.countDocuments({ status: 'rejected' }),
+            Quotation.countDocuments({ status: { $in: ['accepted', 'sent'] } })
+        ]);
 
-        // 2. Revenue Stats - DYNAMIC FROM DATABASE
+        const responseData = {
+            working,
+            accepted,
+            sent,
+            rejected
+        };
 
-        // Invoice-based revenue (Actual Revenue)
-        const invoices = await Invoice.find();
-        const invoiceRevenue = invoices.reduce((sum, inv) => sum + (inv.summary?.grandTotal || 0), 0);
-        const totalCollected = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
-        const invoicePending = invoiceRevenue - totalCollected;
+        const duration = Date.now() - startTime;
+        console.log(`✅ [Dashboard] GET /project-stats → 200 OK (${duration}ms) | working=${working}, accepted=${accepted}, sent=${sent}, rejected=${rejected}`);
 
-        // Quotation-based revenue (Projected Revenue from accepted/sent quotations)
-        const acceptedSentQuotations = await Quotation.find({
-            status: { $in: ['accepted', 'sent'] }
+        res.status(200).json({
+            success: true,
+            data: responseData
         });
-        const quotationRevenue = acceptedSentQuotations.reduce((sum, quot) => sum + (quot.summary?.grandTotal || 0), 0);
-
-        // Total Revenue = Invoice Revenue + Quotation Revenue
-        const totalRevenue = invoiceRevenue + quotationRevenue;
-        const totalPending = invoicePending;
-
-        // 3. Status Breakdown
-        const draftQuotations = await Quotation.countDocuments({ status: 'draft' });
-        const sentQuotations = await Quotation.countDocuments({ status: 'sent' });
-        const acceptedQuotations = await Quotation.countDocuments({ status: 'accepted' });
-        const rejectedQuotations = await Quotation.countDocuments({ status: 'rejected' });
-
-        // Working Projects: accepted + sent (projects that are in progress or confirmed)
-        const workingQuotations = await Quotation.countDocuments({
-            status: { $in: ['accepted', 'sent'] }
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`❌ [Dashboard] GET /project-stats → 500 Error (${duration}ms):`, error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch project stats',
+            error: error.message
         });
+    }
+};
 
-        const pendingInvoices = await Invoice.countDocuments({ paymentStatus: 'Pending' });
-        const overdueInvoices = await Invoice.countDocuments({ paymentStatus: 'Overdue' });
+/**
+ * ─────────────────────────────────────────────────────────────
+ * GET /api/dashboard/recent-activities
+ * Returns last 5 combined quotations + invoices for sidebar
+ * ─────────────────────────────────────────────────────────────
+ */
+export const getRecentActivities = async (req, res) => {
+    const startTime = Date.now();
+    console.log(`📋 [Dashboard] GET /recent-activities → Request received`);
 
-        // 4. Recent Activity (Last 5 combined)
-        const recentQuotations = await Quotation.find()
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('client', 'name')
-            .lean();
-
-        const recentInvoices = await Invoice.find()
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('client', 'name')
-            .lean();
+    try {
+        const [recentQuotations, recentInvoices] = await Promise.all([
+            Quotation.find()
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .populate('client', 'name')
+                .lean(),
+            Invoice.find()
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .populate('client', 'name')
+                .lean()
+        ]);
 
         const activities = [
             ...recentQuotations.map(q => ({ ...q, type: 'quotation' })),
             ...recentInvoices.map(i => ({ ...i, type: 'invoice' }))
-        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
 
-        // Notifications
-        const notifications = await Notification.find()
-            .sort({ createdAt: -1 })
-            .limit(10);
+        const duration = Date.now() - startTime;
+        console.log(`✅ [Dashboard] GET /recent-activities → 200 OK (${duration}ms) | ${activities.length} activities (${recentQuotations.length} quotations, ${recentInvoices.length} invoices)`);
 
-        // 5. Revenue Chart Data (Last 30 Days) - DYNAMIC FROM DATABASE
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        thirtyDaysAgo.setHours(0, 0, 0, 0);
-
-        // Get invoice revenue by date
-        const invoiceChartData = await Invoice.aggregate([
-            {
-                $match: {
-                    issueDate: { $gte: thirtyDaysAgo }
-                }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$issueDate" } },
-                    value: { $sum: "$summary.grandTotal" }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // Get quotation revenue by date (from accepted/sent quotations)
-        const quotationChartData = await Quotation.aggregate([
-            {
-                $match: {
-                    status: { $in: ['accepted', 'sent'] },
-                    createdAt: { $gte: thirtyDaysAgo }
-                }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    value: { $sum: "$summary.grandTotal" }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // Combine invoice and quotation data by date
-        const combinedRevenueData = {};
-
-        invoiceChartData.forEach(item => {
-            combinedRevenueData[item._id] = (combinedRevenueData[item._id] || 0) + item.value;
+        res.status(200).json({
+            success: true,
+            data: activities
         });
-
-        quotationChartData.forEach(item => {
-            combinedRevenueData[item._id] = (combinedRevenueData[item._id] || 0) + item.value;
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`❌ [Dashboard] GET /recent-activities → 500 Error (${duration}ms):`, error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch recent activities',
+            error: error.message
         });
+    }
+};
 
-        // Get project count by date (all created quotations)
-        const projectChartData = await Quotation.aggregate([
-            {
-                $match: {
-                    createdAt: { $gte: thirtyDaysAgo }
-                }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
+/**
+ * ─────────────────────────────────────────────────────────────
+ * GET /api/dashboard/charts?filter=30days
+ * Returns date-wise revenue + project count for graph plotting
+ * Supports: today, 7days, 30days (default: 30days)
+ * ─────────────────────────────────────────────────────────────
+ */
+export const getCharts = async (req, res) => {
+    const startTime = Date.now();
+    const filter = req.query.filter || '30days';
+    console.log(`📈 [Dashboard] GET /charts?filter=${filter} → Request received`);
 
-        const combinedProjectData = {};
-        projectChartData.forEach(item => {
-            combinedProjectData[item._id] = item.count;
-        });
-
-        // Fill in missing dates for the last 30 days
-        const filledRevenueData = [];
-        const filledProjectData = [];
-
-        for (let i = 29; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const dateString = d.toISOString().split('T')[0];
-
-            // Format date for display (e.g., "Oct 24")
-            const displayDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-            filledRevenueData.push({
-                date: dateString,
-                name: displayDate,
-                value: combinedRevenueData[dateString] || 0
-            });
-
-            filledProjectData.push({
-                date: dateString,
-                name: displayDate,
-                value: combinedProjectData[dateString] || 0
-            });
+    try {
+        // Calculate date range based on filter
+        const now = new Date();
+        let startDate;
+        if (filter === 'today') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (filter === '7days') {
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 6);
+            startDate.setHours(0, 0, 0, 0);
+        } else {
+            // Default 30days
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 29);
+            startDate.setHours(0, 0, 0, 0);
         }
+
+        // Aggregate quotations by date
+        const [revenueAgg, projectAgg] = await Promise.all([
+            Quotation.aggregate([
+                { $match: { createdAt: { $gte: startDate }, status: { $in: ['accepted', 'sent'] } } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                        value: { $sum: '$summary.grandTotal' }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ]),
+            Quotation.aggregate([
+                { $match: { createdAt: { $gte: startDate } } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                        value: { $sum: 1 }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ])
+        ]);
+
+        // Build date-wise map for filling missing dates with 0
+        const revenueMap = {};
+        revenueAgg.forEach(r => { revenueMap[r._id] = r.value; });
+
+        const projectMap = {};
+        projectAgg.forEach(p => { projectMap[p._id] = p.value; });
+
+        // Generate all dates in range
+        const revenueChart = [];
+        const projectChart = [];
+        const current = new Date(startDate);
+
+        while (current <= now) {
+            const dateKey = current.toISOString().split('T')[0];
+            const label = current.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+            revenueChart.push({ name: label, value: revenueMap[dateKey] || 0 });
+            projectChart.push({ name: label, value: projectMap[dateKey] || 0 });
+
+            current.setDate(current.getDate() + 1);
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ [Dashboard] GET /charts?filter=${filter} → 200 OK (${duration}ms) | ${revenueChart.length} data points`);
 
         res.status(200).json({
             success: true,
             data: {
-                overview: {
-                    totalQuotations,
-                    totalInvoices,
-                    totalClients,
-                    totalRevenue,           // Combined revenue from invoices + quotations
-                    invoiceRevenue,         // Revenue from invoices only
-                    quotationRevenue,       // Revenue from accepted/sent quotations
-                    totalCollected,         // Amount collected from invoices
-                    totalPending            // Pending amount from invoices
-                },
-                quotationStats: {
-                    draft: draftQuotations,
-                    sent: sentQuotations,
-                    accepted: acceptedQuotations,
-                    rejected: rejectedQuotations,
-                    working: workingQuotations
-                },
-                invoiceStats: {
-                    pending: pendingInvoices,
-                    overdue: overdueInvoices
-                },
-                recentActivity: activities,
-                notifications,
-                revenueChart: filledRevenueData,
-                projectChart: filledProjectData
+                revenueChart,
+                projectChart
             }
         });
     } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
+        const duration = Date.now() - startTime;
+        console.error(`❌ [Dashboard] GET /charts → 500 Error (${duration}ms):`, error.message);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch dashboard stats',
+            message: 'Failed to fetch chart data',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * GET /api/dashboard/overview
+ * Returns total revenue + total quotations count
+ * ─────────────────────────────────────────────────────────────
+ */
+export const getOverview = async (req, res) => {
+    const startTime = Date.now();
+    console.log(`🏠 [Dashboard] GET /overview → Request received`);
+
+    try {
+        const [revenueAgg, totalQuotations] = await Promise.all([
+            Quotation.aggregate([
+                { $match: { status: { $in: ['accepted', 'sent'] } } },
+                { $group: { _id: null, total: { $sum: '$summary.grandTotal' } } }
+            ]),
+            Quotation.countDocuments()
+        ]);
+
+        const totalRevenue = revenueAgg.length > 0 ? revenueAgg[0].total : 0;
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ [Dashboard] GET /overview → 200 OK (${duration}ms) | revenue=₹${totalRevenue}, quotations=${totalQuotations}`);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                totalRevenue,
+                totalQuotations
+            }
+        });
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`❌ [Dashboard] GET /overview → 500 Error (${duration}ms):`, error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch overview',
             error: error.message
         });
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { notificationApi } from '@/services/api/miscApi';
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -38,27 +38,7 @@ const navItems = [
 export function Sidebar({ isOpen, onToggle, isHovered, setIsHovered }: SidebarProps) {
   const location = useLocation();
   const { logout } = useAuth();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // Fetch unread notifications
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const response = await notificationApi.getAll();
-        if (response.success && response.data?.notifications) {
-          const count = response.data.notifications.filter((n: any) => !n.isRead).length;
-          setUnreadCount(count);
-        }
-      } catch (error) {
-        console.error('Failed to fetch notifications', error);
-      }
-    };
-
-    fetchUnread();
-    // Poll every minute
-    const interval = setInterval(fetchUnread, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const unreadCount = 0; // Disabled - will re-enable when notification API is ready
 
   // Sidebar is visible if it's pinned (isOpen) OR hovered
   const showSidebar = isOpen || isHovered;

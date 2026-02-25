@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import connectDB from "./db/index.js";
 import quotationRoutes from './routes/quotationRoutes.js';
@@ -9,50 +14,77 @@ import clientRoutes from './routes/clientRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import templateRoutes from './routes/templateRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import publicQuotationRoutes from './routes/publicQuotationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import pdfRoutes from './routes/pdfRoutes.js';
+import logRoutes from './routes/logRoutes.js';
+import apiLogger from './middlewares/apiLogger.js';
+import { getLogs, getLogStats, clearLogs, getLiveLogs } from './controllers/logController.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// ═══════════════════════════════════════════════════
+// CORE MIDDLEWARE
+// ═══════════════════════════════════════════════════
 app.use(cors({
-    origin: true, // Allow any origin with credentials
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
-// Routes
+// 📡 API Logger — MUST be BEFORE all /api routes
+app.use(apiLogger);
+
+// ═══════════════════════════════════════════════════
+// STATIC & UTILITY ROUTES
+// ═══════════════════════════════════════════════════
 app.get('/api', (req, res) => {
     res.json({ message: 'Buildex Backend is connected!' });
 });
 
-// API Routes
+// 📊 Standalone Log Viewer (HTML page + internal API)
+// These are NOT /api routes so they won't be logged by apiLogger
+app.get('/system-logs', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'logs.html'));
+});
+// Internal log routes for standalone viewer (no auth required)
+app.get('/internal/logs', getLogs);
+app.get('/internal/logs/stats', getLogStats);
+app.get('/internal/logs/live', getLiveLogs);
+app.delete('/internal/logs', clearLogs);
+
+// ═══════════════════════════════════════════════════
+// API ROUTES (Protected)
+// ═══════════════════════════════════════════════════
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/templates', templateRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/public/quotation', publicQuotationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api', feedbackRoutes);
-app.use('/api/pdf', pdfRoutes); // PDF Generation Routes
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/logs', logRoutes);  // Protected with admin auth
 
-// Connect to DB and Start Server
+// ═══════════════════════════════════════════════════
+// START SERVER
+// ═══════════════════════════════════════════════════
 connectDB()
     .then(() => {
         app.listen(PORT, () => {
             console.log(`Server is running on http://localhost:${PORT}`);
-            // Server restarted manually 2
         });
     })
     .catch((err) => {

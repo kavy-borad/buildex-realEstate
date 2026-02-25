@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -18,6 +19,12 @@ export function AdminLayout() {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (!isAuthenticated) {
     return null;
@@ -34,18 +41,12 @@ export function AdminLayout() {
       <Navbar sidebarOpen={isExpanded} />
       <MobileNav />
 
-      {/* Desktop Content */}
       <main
-        className="hidden lg:block transition-all duration-300 pt-14 pb-6"
+        className="transition-all duration-300 pt-14 pb-6"
         style={{
-          marginLeft: isExpanded ? 240 : 88,
+          marginLeft: isDesktop ? (isExpanded ? 240 : 88) : 0,
         }}
       >
-        <Outlet />
-      </main>
-
-      {/* Mobile Content */}
-      <main className="lg:hidden pt-14 pb-6 px-0">
         <Outlet />
       </main>
     </div>

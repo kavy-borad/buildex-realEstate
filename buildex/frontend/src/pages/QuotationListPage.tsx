@@ -23,12 +23,18 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function QuotationListPage() {
-  const { quotations, deleteQuotation, companyDetails, updateQuotation, addQuotation } = useQuotations();
+  const { quotations, deleteQuotation, companyDetails, updateQuotation, addQuotation, refreshQuotations, loading } = useQuotations();
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch quotations from API when page loads (single call)
+  useEffect(() => {
+    console.log('📋 QuotationListPage mounted → Fetching quotations...');
+    refreshQuotations();
+  }, []);
 
   // Check if navigating from Clients page with filter
   useEffect(() => {

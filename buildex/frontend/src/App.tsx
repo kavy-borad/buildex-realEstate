@@ -30,40 +30,45 @@ const queryClient = new QueryClient();
 const App = () => (
   <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <QuotationProvider>
-          <InvoiceProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/login" replace />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/quotation/view/:token" element={<PublicQuotationView />} />
-                  <Route element={<AdminLayout />}>
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/create-quotation" element={<CreateQuotationPage />} />
-                    <Route path="/quotations" element={<QuotationListPage />} />
-                    <Route path="/quotation/:id" element={<QuotationPreviewPage />} />
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes — NO providers needed, no extra API calls */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/quotation/view/:token" element={<PublicQuotationView />} />
 
-                    {/* Invoice Routes */}
-                    <Route path="/create-invoice" element={<CreateInvoicePage />} />
-                    <Route path="/invoices" element={<InvoiceListPage />} />
-                    <Route path="/invoice/:id" element={<InvoicePreviewPage />} />
+            {/* Admin routes — wrapped in Auth + Quotation + Invoice providers */}
+            <Route element={
+              <AuthProvider>
+                <QuotationProvider>
+                  <InvoiceProvider>
+                    <AdminLayout />
+                  </InvoiceProvider>
+                </QuotationProvider>
+              </AuthProvider>
+            }>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/create-quotation" element={<CreateQuotationPage />} />
+              <Route path="/quotations" element={<QuotationListPage />} />
+              <Route path="/quotation/:id" element={<QuotationPreviewPage />} />
 
-                    <Route path="/clients" element={<ClientsPage />} />
-                    <Route path="/notifications" element={<NotificationsPage />} />
-                    <Route path="/feedback" element={<ClientFeedbackPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
-          </InvoiceProvider>
-        </QuotationProvider>
-      </AuthProvider>
+              {/* Invoice Routes */}
+              <Route path="/create-invoice" element={<CreateInvoicePage />} />
+              <Route path="/invoices" element={<InvoiceListPage />} />
+              <Route path="/invoice/:id" element={<InvoicePreviewPage />} />
+
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/feedback" element={<ClientFeedbackPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   </ThemeProvider>
 );
