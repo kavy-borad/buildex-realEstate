@@ -29,8 +29,9 @@ export default function LoginPage() {
   // Auto-login on page load (only once)
   useEffect(() => {
     const attemptAutoLogin = async () => {
-      // Only attempt if not authenticated and not already attempted
-      if (!isAuthenticated && !autoLoginAttempted && AUTO_LOGIN_CONFIG.enabled) {
+      // Only attempt if not authenticated, not already attempted, and user didn't manually logout
+      const manualLogout = localStorage.getItem('manual_logout');
+      if (!isAuthenticated && !autoLoginAttempted && AUTO_LOGIN_CONFIG.enabled && !manualLogout) {
         setAutoLoginAttempted(true);
         setIsLoading(true);
 
@@ -66,6 +67,7 @@ export default function LoginPage() {
       const success = await login(email, password);
 
       if (success) {
+        localStorage.removeItem('manual_logout'); // Clear flag on successful manual login
         toast({
           title: "Access Granted",
           description: "Welcome back to the command center.",

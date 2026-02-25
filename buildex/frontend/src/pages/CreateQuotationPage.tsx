@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import {
@@ -92,10 +92,12 @@ export default function CreateQuotationPage() {
   const location = useLocation();
   const { addQuotation, companyDetails, quotations, updateQuotation } = useQuotations();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
-  // Check if editing existing quotation
-  const editId = location.state?.editId;
+  // Check if editing existing quotation — supports both location.state and ?edit= query param
+  const editId = location.state?.editId || searchParams.get('edit');
   const isEditMode = !!editId;
+  const [editDataLoaded, setEditDataLoaded] = useState(false);
 
   // Client Details State
   const [clientDetails, setClientDetails] = useState<ClientDetails>({
@@ -299,54 +301,81 @@ export default function CreateQuotationPage() {
 
   // Load existing quotation data for edit mode
   useEffect(() => {
-    if (isEditMode && editId) {
-      const existingQuotation = quotations.find(q => q.id === editId);
-      if (existingQuotation) {
-        setClientDetails(existingQuotation.clientDetails);
-        setProjectDetails(existingQuotation.projectDetails);
-        setCostItems(existingQuotation.costItems);
+    if (!isEditMode || !editId || editDataLoaded) return;
 
-        // Restore custom items logic for Material Templates
-        // Map item.id -> string[] (custom items only)
-        const restoredCustomItems: Record<string, string[]> = {};
+    const loadEditData = (existingQuotation: Quotation) => {
+      console.log('📝 [Edit Mode] Loading quotation data:', existingQuotation.id);
+      setClientDetails(existingQuotation.clientDetails);
+      setProjectDetails(existingQuotation.projectDetails);
+      setCostItems(existingQuotation.costItems);
 
-        existingQuotation.costItems.forEach(item => {
-          if (item.category && item.description) {
-            const catData = materialCategories.find(c => c.category === item.category);
-            const defaultItems = catData?.items || [];
-
-            // Reconstruct full list
-            const savedItems = item.description.split(',').map(s => s.trim()).filter(Boolean);
-
-            // Filter out default items to find custom ones
-            // Note: This is an approximation. If a user added a custom item same as default, it might be filtered.
-            // But usually custom items are unique.
-            const custom = savedItems.filter(i => !defaultItems.includes(i));
-
-            if (custom.length > 0) {
-              restoredCustomItems[item.id] = custom;
-            }
+      // Restore custom items logic for Material Templates
+      const restoredCustomItems: Record<string, string[]> = {};
+      existingQuotation.costItems.forEach(item => {
+        if (item.category && item.description) {
+          const catData = materialCategories.find(c => c.category === item.category);
+          const defaultItems = catData?.items || [];
+          const savedItems = item.description.split(',').map(s => s.trim()).filter(Boolean);
+          const custom = savedItems.filter(i => !defaultItems.includes(i));
+          if (custom.length > 0) {
+            restoredCustomItems[item.id] = custom;
           }
-        });
-        setCustomItems(restoredCustomItems);
+        }
+      });
+      setCustomItems(restoredCustomItems);
 
-        if (existingQuotation.termsAndConditions) {
-          setTerms(existingQuotation.termsAndConditions);
-        }
-        if (existingQuotation.summary && existingQuotation.summary.labourCost) {
-          setLabourCost(existingQuotation.summary.labourCost);
-        }
-
-        // Helper: If we detect material template items, switch UI mode?
-        // Maybe optional, but good for UX
-        const isMaterial = existingQuotation.costItems.some(i => i.category && i.unit === 'Lump Sum');
-        if (isMaterial) {
-          setSelectedCategoryTemplate('restored'); // Just a marker to show the simplified UI
-        }
+      if (existingQuotation.termsAndConditions) {
+        setTerms(existingQuotation.termsAndConditions);
       }
+      if (existingQuotation.summary?.labourCost) {
+        setLabourCost(existingQuotation.summary.labourCost);
+      }
+      if (existingQuotation.summary?.discount) {
+        setDiscount(existingQuotation.summary.discount);
+      }
+      if (existingQuotation.summary?.gstPercentage !== undefined) {
+        setGstPercentage(existingQuotation.summary.gstPercentage);
+      }
+
+      const isMaterial = existingQuotation.costItems.some(i => i.category && i.unit === 'Lump Sum');
+      if (isMaterial) {
+        setSelectedCategoryTemplate('restored');
+      }
+      setEditDataLoaded(true);
+    };
+
+    // First try from local context
+    const existingQuotation = quotations.find(q => q.id === editId);
+    if (existingQuotation) {
+      loadEditData(existingQuotation);
+    } else {
+      // Fetch from API if not in local context (e.g. navigated via URL directly)
+      console.log('📝 [Edit Mode] Quotation not in context, fetching from API...');
+      quotationApi.getById(editId).then(response => {
+        if (response.success && response.data) {
+          console.log('✅ [Edit Mode] Fetched from API:', response.data.id);
+          loadEditData(response.data);
+        } else {
+          console.error('❌ [Edit Mode] Failed to fetch quotation:', editId);
+          toast({
+            title: 'Error',
+            description: 'Could not load quotation for editing.',
+            variant: 'destructive',
+          });
+          navigate('/quotations');
+        }
+      }).catch(error => {
+        console.error('❌ [Edit Mode] API error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load quotation data.',
+          variant: 'destructive',
+        });
+        navigate('/quotations');
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, editId]); // Only run when editId changes, not when quotations change
+  }, [isEditMode, editId]); // Only run when editId changes
 
   // Auto-calculate Material Cost from cost items
   useEffect(() => {
@@ -438,27 +467,44 @@ export default function CreateQuotationPage() {
     try {
       const quotation = createQuotationObject();
       console.log('📋 Quotation object created:', {
+        isEditMode,
+        editId: editId || 'N/A',
         clientName: quotation.clientDetails.name,
         projectType: quotation.projectDetails.projectType,
         itemCount: quotation.costItems.length,
         total: quotation.summary.grandTotal
       });
 
-      console.log('💾 Calling POST /api/quotations...');
-      const saved = await addQuotation(quotation);
+      if (isEditMode && editId) {
+        // ── UPDATE existing quotation ──
+        console.log(`✏️ Calling PUT /api/quotations/${editId}...`);
+        await updateQuotation(editId, quotation);
+        console.log('✅ Update successful! ID:', editId);
 
-      console.log('✅ Save successful! ID:', saved?.id);
+        toast({
+          title: 'Quotation Updated ✅',
+          description: 'Your changes have been saved successfully.',
+          className: 'border-l-4 border-l-blue-600 bg-white dark:bg-slate-900 shadow-md',
+        });
 
-      toast({
-        title: 'Draft Saved',
-        description: 'Quotation has been successfully saved.',
-        className: 'border-l-4 border-l-emerald-600 bg-white dark:bg-slate-900 shadow-md',
-      });
-
-      if (saved && saved.id) {
-        navigate(`/quotation/${saved.id}`);
+        navigate(`/quotation/${editId}`);
       } else {
-        navigate(`/quotation/${quotation.id}`);
+        // ── CREATE new quotation ──
+        console.log('💾 Calling POST /api/quotations...');
+        const saved = await addQuotation(quotation);
+        console.log('✅ Save successful! ID:', saved?.id);
+
+        toast({
+          title: 'Draft Saved',
+          description: 'Quotation has been successfully saved.',
+          className: 'border-l-4 border-l-emerald-600 bg-white dark:bg-slate-900 shadow-md',
+        });
+
+        if (saved && saved.id) {
+          navigate(`/quotation/${saved.id}`);
+        } else {
+          navigate(`/quotation/${quotation.id}`);
+        }
       }
     } catch (error: any) {
       console.error('❌ SAVE FAILED:', error.message);
@@ -550,10 +596,10 @@ export default function CreateQuotationPage() {
       {/* Header */}
       <motion.div variants={sectionVariants} className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 w-fit">
-          Create New Quotation
+          {isEditMode ? 'Edit Quotation' : 'Create New Quotation'}
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Fill in the project details to generate a professional estimate.
+          {isEditMode ? 'Update the quotation details and save your changes.' : 'Fill in the project details to generate a professional estimate.'}
         </p>
       </motion.div>
 
@@ -1406,8 +1452,8 @@ export default function CreateQuotationPage() {
 
               {/* Action Buttons */}
               <div className="mt-6 pt-6 border-t border-border/50 space-y-3">
-                <Button onClick={handleSave} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-12 font-medium text-base transition-all active:scale-[0.98]">
-                  <Save className="w-5 h-5 mr-2" /> Save Draft
+                <Button onClick={handleSave} disabled={saving} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-12 font-medium text-base transition-all active:scale-[0.98]">
+                  <Save className="w-5 h-5 mr-2" /> {saving ? 'Saving...' : isEditMode ? 'Update Quotation' : 'Save Draft'}
                 </Button>
 
                 <div className="grid grid-cols-2 gap-3">

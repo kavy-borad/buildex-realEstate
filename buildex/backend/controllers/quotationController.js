@@ -252,14 +252,21 @@ export const getQuotationById = async (req, res) => {
  * ─────────────────────────────────────────────────────────────────────────
  */
 export const updateQuotation = async (req, res) => {
-    try {
-        const { clientDetails, projectDetails, costItems, summary, notes } = req.body;
+    const startTime = Date.now();
+    const id = req.params.id;
+    console.log(`\n✏️ [Quotation] PUT /quotations/${id} → Request received`);
 
-        const quotation = await Quotation.findById(req.params.id);
+    try {
+        const { clientDetails, projectDetails, costItems, summary, notes, termsAndConditions } = req.body;
+
+        const quotation = await Quotation.findById(id);
 
         if (!quotation) {
-            return res.status(404).json({ message: 'Quotation not found' });
+            console.log(`  ❌ Quotation not found (${id})`);
+            return res.status(404).json({ success: false, message: 'Quotation not found' });
         }
+
+        console.log(`  📋 Found: ${quotation.quotationNumber} | Status: ${quotation.status} | ClientStatus: ${quotation.clientStatus}`);
 
         // Update fields
         if (clientDetails) quotation.clientDetails = clientDetails;
@@ -267,16 +274,44 @@ export const updateQuotation = async (req, res) => {
         if (costItems) quotation.costItems = costItems;
         if (summary) quotation.summary = summary;
         if (notes !== undefined) quotation.notes = notes;
+        if (termsAndConditions !== undefined) quotation.termsAndConditions = termsAndConditions;
+
+        // If the quotation was previously responded to by the client (e.g. changes requested)
+        // Reset it when admin makes edits, so the client gets a fresh "pending" state.
+        if (quotation.clientStatus && quotation.clientStatus !== 'pending') {
+            const prevStatus = quotation.clientStatus;
+            quotation.clientStatus = 'pending';
+            quotation.status = 'draft';
+
+            quotation.activityLog.push({
+                action: 'Quotation Revised',
+                details: `Admin revised quotation after client ${prevStatus}.`,
+                ipAddress: req.ip
+            });
+
+            quotation.clientFeedback = undefined;
+            console.log(`  🔁 Reset: clientStatus ${prevStatus} → pending | Cleared feedback`);
+        } else {
+            quotation.activityLog.push({
+                action: 'Quotation Updated',
+                details: 'Admin updated quotation details.',
+                ipAddress: req.ip
+            });
+        }
 
         await quotation.save();
         await quotation.populate('client');
+
+        const duration = Date.now() - startTime;
+        console.log(`  ✅ Updated ${quotation.quotationNumber} | Total: ₹${quotation.summary?.grandTotal?.toLocaleString()} | ${duration}ms\n`);
 
         res.status(200).json({
             success: true,
             data: transformQuotationForFrontend(quotation)
         });
     } catch (error) {
-        console.error('Error updating quotation:', error);
+        const duration = Date.now() - startTime;
+        console.error(`  ❌ [Quotation] PUT failed | ${duration}ms | ${error.message}`);
         res.status(500).json({
             success: false,
             message: 'Failed to update quotation',

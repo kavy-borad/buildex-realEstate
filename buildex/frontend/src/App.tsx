@@ -34,39 +34,39 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            {/* Public routes — NO providers needed, no extra API calls */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/quotation/view/:token" element={<PublicQuotationView />} />
+          <AuthProvider>
+            <Routes>
+              {/* Public routes — NO providers needed, no extra API calls */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/quotation/view/:token" element={<PublicQuotationView />} />
 
-            {/* Admin routes — wrapped in Auth + Quotation + Invoice providers */}
-            <Route element={
-              <AuthProvider>
+              {/* Admin routes — wrapped in Quotation + Invoice providers */}
+              <Route element={
                 <QuotationProvider>
                   <InvoiceProvider>
                     <AdminLayout />
                   </InvoiceProvider>
                 </QuotationProvider>
-              </AuthProvider>
-            }>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/create-quotation" element={<CreateQuotationPage />} />
-              <Route path="/quotations" element={<QuotationListPage />} />
-              <Route path="/quotation/:id" element={<QuotationPreviewPage />} />
+              }>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/create-quotation" element={<CreateQuotationPage />} />
+                <Route path="/quotations" element={<QuotationListPage />} />
+                <Route path="/quotation/:id" element={<QuotationPreviewPage />} />
 
-              {/* Invoice Routes */}
-              <Route path="/create-invoice" element={<CreateInvoicePage />} />
-              <Route path="/invoices" element={<InvoiceListPage />} />
-              <Route path="/invoice/:id" element={<InvoicePreviewPage />} />
+                {/* Invoice Routes */}
+                <Route path="/create-invoice" element={<CreateInvoicePage />} />
+                <Route path="/invoices" element={<InvoiceListPage />} />
+                <Route path="/invoice/:id" element={<InvoicePreviewPage />} />
 
-              <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/feedback" element={<ClientFeedbackPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+                <Route path="/clients" element={<ClientsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/feedback" element={<ClientFeedbackPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

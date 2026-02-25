@@ -9,7 +9,8 @@ import {
     Filter,
     Calendar,
     ChevronRight,
-    ArrowUpRight
+    ArrowUpRight,
+    Pencil
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +38,7 @@ export default function ClientFeedbackPage() {
             // Use the dedicated feedback API endpoint
             const response = await feedbackApi.getAllWithFeedback();
             if (response.success && response.data) {
-                setQuotations(response.data);
+                setQuotations(response.data as any[]);
             }
         } catch (error) {
             console.error('Failed to fetch feedback', error);
@@ -223,7 +224,7 @@ export default function ClientFeedbackPage() {
                                                     <p className="text-xl font-bold text-foreground">₹{quotation.summary?.grandTotal?.toLocaleString()}</p>
                                                 </div>
 
-                                                <div className="flex gap-2 w-full lg:w-auto">
+                                                <div className="flex flex-col gap-2 w-full lg:w-auto">
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
@@ -233,6 +234,17 @@ export default function ClientFeedbackPage() {
                                                         View Quotation
                                                         <ArrowUpRight className="w-3 h-3" />
                                                     </Button>
+                                                    {quotation.clientStatus === 'changes-requested' && (
+                                                        <Button
+                                                            variant="default"
+                                                            size="sm"
+                                                            className="flex-1 lg:flex-none gap-2 h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                                                            onClick={() => navigate(`/create-quotation?edit=${quotation.id}`)}
+                                                        >
+                                                            <Pencil className="w-3 h-3" />
+                                                            Edit
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </div>
 

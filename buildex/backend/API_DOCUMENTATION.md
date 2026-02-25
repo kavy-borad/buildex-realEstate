@@ -44,9 +44,9 @@ Authorization: `Bearer <token>` (Required for all routes except `/auth/login`, `
   "success": true,
   "data": {
     "id": "60a...123",
-    "name": "Super Admin",
+    "name": "Admin",
     "email": "admin@example.com",
-    "role": "super-admin"
+    "role": "admin"
   }
 }
 ```
