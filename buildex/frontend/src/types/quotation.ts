@@ -65,6 +65,7 @@ export interface Quotation {
   rejectedAt?: string;
   viewedAt?: string;
   tokenExpiresAt?: string;
+  companyDetails?: CompanyDetails;
 }
 
 export interface CompanyDetails {

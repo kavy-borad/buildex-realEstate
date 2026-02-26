@@ -1,6 +1,7 @@
 import Quotation from '../models/Quotation.js';
 import Client from '../models/Client.js';
 import Notification from '../models/Notification.js';
+import Settings from '../models/Settings.js';
 import crypto from 'crypto';
 
 // Get public quotation by token
@@ -27,6 +28,10 @@ export const getPublicQuotation = async (req, res) => {
             await quotation.save();
         }
 
+        // Fetch company details from Settings
+        const settings = await Settings.getInstance();
+        const companyDetails = settings?.companyDetails || {};
+
         // Map backend model to frontend expected structure
         const responseData = {
             ...quotation.toObject(),
@@ -37,6 +42,16 @@ export const getPublicQuotation = async (req, res) => {
                 siteAddress: quotation.client?.address || '',
                 quotationDate: quotation.quotationDate,
                 validTill: quotation.validTill
+            },
+            companyDetails: {
+                name: companyDetails.name || 'Buildex Construction',
+                address: companyDetails.address || 'Ahmedabad, India',
+                phone: companyDetails.phone || '+91 98765 43210',
+                email: companyDetails.email || 'info@buildex.com',
+                gstNumber: companyDetails.gstNumber || '',
+                logo: companyDetails.logo || '',
+                tagline: companyDetails.tagline || '',
+                website: companyDetails.website || ''
             },
             id: quotation._id
         };
