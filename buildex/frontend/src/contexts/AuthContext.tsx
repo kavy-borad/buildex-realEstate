@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { AUTO_LOGIN_CONFIG } from '@/config/autoLogin';
+import { API_BASE_URL } from '@/services/api/core';
 
 interface User {
   id: string;
@@ -12,6 +14,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
+  setSession: (user: User, token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,45 +30,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔐 [Auth] Login attempt:', email);
 
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
         console.error('❌ [Auth] Login failed with status:', response.status);
-        try {
-          const errorData = await response.json();
-          console.error('  Error:', errorData.error || errorData.message);
-        } catch (e) {
-          console.error('  Could not parse error response');
-        }
         return false;
       }
 
       const data = await response.json();
-      console.log('📦 [Auth] Response:', { success: data.success, hasToken: !!data.token, hasAdmin: !!data.admin });
 
       if (data.success && data.token && data.admin) {
-        // New format: token and admin at root level
-        setUser(data.admin);
-        localStorage.setItem('auth_user', JSON.stringify(data.admin));
+        const u: User = { id: data.admin._id || data.admin.id, name: data.admin.name, email: data.admin.email, role: data.admin.role };
+        setUser(u);
+        localStorage.setItem('auth_user', JSON.stringify(u));
         localStorage.setItem('auth_token', data.token);
-        console.log('✅ [Auth] Login successful:', data.admin.name);
+        console.log('✅ [Auth] Login successful:', u.name);
         return true;
       } else if (data.success && data.data) {
-        // Legacy format fallback: nested in data
         const { admin, token } = data.data;
-        setUser(admin);
-        localStorage.setItem('auth_user', JSON.stringify(admin));
+        const u: User = { id: admin._id || admin.id, name: admin.name, email: admin.email, role: admin.role };
+        setUser(u);
+        localStorage.setItem('auth_user', JSON.stringify(u));
         localStorage.setItem('auth_token', token);
-        console.log('✅ [Auth] Login successful (legacy format):', admin.name);
         return true;
       }
 
-      console.error('❌ [Auth] Unexpected response format');
       return false;
     } catch (error) {
       console.error('❌ [Auth] Login error:', error);
@@ -72,36 +66,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(async () => {
-    console.log('🚪 [Auth] Logout initiated');
+  // Fetch fresh user data from backend (fixes stale localStorage cache)
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const raw = data.admin || data.data || null;
+      if (raw?.email) {
+        const freshUser: User = { id: raw._id || raw.id, name: raw.name, email: raw.email, role: raw.role };
+        setUser(freshUser);
+        localStorage.setItem('auth_user', JSON.stringify(freshUser));
+      }
+    } catch { /* silently ignore */ }
+  }, []);
 
-    // Call backend logout (fire-and-forget — always clear frontend regardless)
+  // On mount: if already has token → refresh; else → auto-login
+  useEffect(() => {
+    const init = async () => {
+      const token = localStorage.getItem('auth_token');
+      const manualLogout = localStorage.getItem('manual_logout');
+
+      if (token) {
+        // Already logged in — just refresh from DB
+        await refreshUser();
+      } else if (AUTO_LOGIN_CONFIG.enabled && !manualLogout) {
+        // No session — try auto-login
+        console.log('🤖 [Auth] Attempting auto-login...');
+        await login(AUTO_LOGIN_CONFIG.credentials.email, AUTO_LOGIN_CONFIG.credentials.password);
+      }
+    };
+    init();
+  }, []);
+
+  const setSession = useCallback((u: User, token: string) => {
+    setUser(u);
+    localStorage.setItem('auth_user', JSON.stringify(u));
+    localStorage.setItem('auth_token', token);
+    localStorage.removeItem('manual_logout');
+  }, []);
+
+  const logout = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       try {
-        await fetch('/api/auth/logout', {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
         });
-        console.log('✅ [Auth] Backend logout successful');
-      } catch (error) {
-        console.error('⚠️ [Auth] Backend logout failed (clearing locally anyway):', error);
-      }
+      } catch { /* ignore */ }
     }
-
-    // Always clear frontend state
     setUser(null);
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_token');
-    localStorage.setItem('manual_logout', 'true'); // Prevent auto-login after manual logout
-    console.log('✅ [Auth] Local session cleared');
+    localStorage.setItem('manual_logout', 'true');
+    console.log('✅ [Auth] Session cleared');
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, refreshUser, setSession }}>
       {children}
     </AuthContext.Provider>
   );

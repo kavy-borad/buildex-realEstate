@@ -16,6 +16,8 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import templateRoutes from './routes/templateRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import platformAuthRoutes from './routes/platformAuthRoutes.js';
+import { seedSuperAdmin } from './controllers/authController.js';
 import publicQuotationRoutes from './routes/publicQuotationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
@@ -32,8 +34,22 @@ const PORT = process.env.PORT || 5000;
 // ═══════════════════════════════════════════════════
 // CORE MIDDLEWARE
 // ═══════════════════════════════════════════════════
+const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+    : [];
+
 app.use(cors({
-    origin: true,
+    origin: allowedOrigins.length > 0
+        ? (origin, callback) => {
+            // Allow requests with no origin (mobile apps, Postman, server-to-server)
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                console.warn(`⚠️ [CORS] Blocked origin: ${origin}`);
+                callback(null, true); // Allow all for now, but log warnings
+            }
+        }
+        : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -71,7 +87,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/templates', templateRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes);           // Buildex app auth
+app.use('/api/platform/auth', platformAuthRoutes); // Super Admin platform auth
 app.use('/api/public/quotation', publicQuotationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api', feedbackRoutes);
@@ -82,7 +99,8 @@ app.use('/api/logs', logRoutes);  // Protected with admin auth
 // START SERVER
 // ═══════════════════════════════════════════════════
 connectDB()
-    .then(() => {
+    .then(async () => {
+        await seedSuperAdmin();
         app.listen(PORT, () => {
             console.log(`Server is running on http://localhost:${PORT}`);
         });

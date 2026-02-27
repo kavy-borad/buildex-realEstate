@@ -7,8 +7,12 @@ import {
     deleteClient,
     getClientStats
 } from '../controllers/clientController.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.use(protect);
+
 
 router.get('/', getAllClients);
 router.get('/stats', getClientStats);

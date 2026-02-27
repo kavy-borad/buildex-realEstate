@@ -13,7 +13,7 @@ export const getAllClients = async (req, res) => {
     try {
         const { search, status } = req.query;
 
-        const filter = {};
+        const filter = { adminId: req.admin._id };
         if (status) filter.status = status;
         if (search) {
             filter.$or = [
@@ -41,7 +41,7 @@ export const getAllClients = async (req, res) => {
 // Get Single Client with Details
 export const getClientById = async (req, res) => {
     try {
-        const client = await Client.findById(req.params.id);
+        const client = await Client.findOne({ _id: req.params.id, adminId: req.admin._id });
         if (!client) {
             return res.status(404).json({ message: 'Client not found' });
         }
@@ -70,7 +70,11 @@ export const getClientById = async (req, res) => {
 // Create Client
 export const createClient = async (req, res) => {
     try {
-        const client = await Client.create(req.body);
+        const clientData = {
+            ...req.body,
+            adminId: req.admin._id
+        };
+        const client = await Client.create(clientData);
         res.status(201).json({
             success: true,
             data: client
@@ -87,8 +91,8 @@ export const createClient = async (req, res) => {
 // Update Client
 export const updateClient = async (req, res) => {
     try {
-        const client = await Client.findByIdAndUpdate(
-            req.params.id,
+        const client = await Client.findOneAndUpdate(
+            { _id: req.params.id, adminId: req.admin._id },
             req.body,
             { new: true, runValidators: true }
         );
@@ -113,7 +117,7 @@ export const updateClient = async (req, res) => {
 // Delete Client
 export const deleteClient = async (req, res) => {
     try {
-        const client = await Client.findByIdAndDelete(req.params.id);
+        const client = await Client.findOneAndDelete({ _id: req.params.id, adminId: req.admin._id });
         if (!client) {
             return res.status(404).json({ success: false, message: 'Client not found' });
         }
@@ -126,11 +130,12 @@ export const deleteClient = async (req, res) => {
 // Get Client Stats
 export const getClientStats = async (req, res) => {
     try {
-        const totalClients = await Client.countDocuments();
-        const activeClients = await Client.countDocuments({ status: 'active' });
+        const filter = { adminId: req.admin._id };
+        const totalClients = await Client.countDocuments(filter);
+        const activeClients = await Client.countDocuments({ ...filter, status: 'active' });
 
-        const clients = await Client.find();
-        const totalRevenue = clients.reduce((sum, c) => sum + c.totalRevenue, 0);
+        const clients = await Client.find(filter);
+        const totalRevenue = clients.reduce((sum, c) => sum + (c.totalRevenue || 0), 0);
 
         res.status(200).json({
             success: true,

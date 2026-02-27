@@ -11,6 +11,7 @@ import CreateInvoicePage from "@/pages/CreateInvoicePage";
 import InvoiceListPage from "@/pages/InvoiceListPage";
 import InvoicePreviewPage from "@/pages/InvoicePreviewPage";
 import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
 import CreateQuotationPage from "@/pages/CreateQuotationPage";
 import QuotationListPage from "@/pages/QuotationListPage";
@@ -21,7 +22,7 @@ import { PublicQuotationView } from "@/pages/PublicQuotationView";
 import ClientsPage from "@/pages/ClientsPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import ClientFeedbackPage from "@/pages/ClientFeedbackPage";
-import NotFound from "./pages/NotFound";
+import SystemLogsPage from "@/pages/SystemLogsPage";import AdminManagementPage from '@/pages/AdminManagementPage';import NotFound from "./pages/NotFound";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -36,9 +37,10 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              {/* Public routes — NO providers needed, no extra API calls */}
+              {/* Public routes */}
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route path="/quotation/view/:token" element={<PublicQuotationView />} />
 
               {/* Admin routes — wrapped in Quotation + Invoice providers */}
@@ -62,6 +64,7 @@ const App = () => (
                 <Route path="/clients" element={<ClientsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/feedback" element={<ClientFeedbackPage />} />
+                <Route path="/logs" element={<SystemLogsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />

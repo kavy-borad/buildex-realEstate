@@ -115,6 +115,13 @@ const quotationSchema = new mongoose.Schema({
         required: true
     },
 
+    // Builder/Admin Reference for Multi-tenancy
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: [true, 'Admin (Builder) ID is required']
+    },
+
     // Client Details (Frontend Structure)
     clientDetails: {
         type: clientDetailsSchema,

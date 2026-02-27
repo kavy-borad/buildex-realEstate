@@ -88,14 +88,15 @@ export const createQuotation = async (req, res) => {
 
         // ── Step 2: Find or create client in Client collection ──
         console.log('  🔍 Looking up client:', clientDetails.phone);
-        let client = await Client.findOne({ phone: clientDetails.phone });
+        let client = await Client.findOne({ phone: clientDetails.phone, adminId: req.admin._id });
 
         if (!client) {
             client = await Client.create({
                 name: clientDetails.name,
                 phone: clientDetails.phone,
                 email: clientDetails.email || '',
-                address: clientDetails.siteAddress || ''
+                address: clientDetails.siteAddress || '',
+                adminId: req.admin._id
             });
             console.log('  👤 New client created:', client._id);
         } else {
@@ -115,6 +116,7 @@ export const createQuotation = async (req, res) => {
         console.log('  💾 Saving to database...');
         const quotation = await Quotation.create({
             quotationNumber,
+            adminId: req.admin._id,
             clientDetails,
             client: client._id,
             projectDetails,
@@ -167,7 +169,7 @@ export const getAllQuotations = async (req, res) => {
         const { status, clientStatus, startDate, endDate, clientId } = req.query;
 
         // Build filter
-        const filter = {};
+        const filter = { adminId: req.admin._id };
         if (status) filter.status = status;
         if (clientStatus) filter.clientStatus = clientStatus;
         if (clientId) filter.client = clientId;
@@ -215,7 +217,7 @@ export const getAllQuotations = async (req, res) => {
  */
 export const getQuotationById = async (req, res) => {
     try {
-        const quotation = await Quotation.findById(req.params.id).populate('client');
+        const quotation = await Quotation.findOne({ _id: req.params.id, adminId: req.admin._id }).populate('client');
 
         if (!quotation) {
             return res.status(404).json({
@@ -259,7 +261,7 @@ export const updateQuotation = async (req, res) => {
     try {
         const { clientDetails, projectDetails, costItems, summary, notes, termsAndConditions } = req.body;
 
-        const quotation = await Quotation.findById(id);
+        const quotation = await Quotation.findOne({ _id: id, adminId: req.admin._id });
 
         if (!quotation) {
             console.log(`  ❌ Quotation not found (${id})`);
@@ -332,7 +334,7 @@ export const deleteQuotation = async (req, res) => {
     console.log(`\n🗑️ [Quotation] DELETE /quotations/${id} → Request received`);
 
     try {
-        const quotation = await Quotation.findById(id);
+        const quotation = await Quotation.findOne({ _id: id, adminId: req.admin._id });
 
         if (!quotation) {
             console.log(`  ❌ Error: Quotation not found (${id})`);
@@ -383,7 +385,7 @@ export const deleteQuotation = async (req, res) => {
 export const updateQuotationStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        const quotation = await Quotation.findById(req.params.id);
+        const quotation = await Quotation.findOne({ _id: req.params.id, adminId: req.admin._id });
 
         if (!quotation) {
             return res.status(404).json({ message: 'Quotation not found' });
@@ -419,14 +421,15 @@ export const updateQuotationStatus = async (req, res) => {
  */
 export const getQuotationStats = async (req, res) => {
     try {
-        const totalQuotations = await Quotation.countDocuments();
-        const draftQuotations = await Quotation.countDocuments({ status: 'draft' });
-        const sentQuotations = await Quotation.countDocuments({ status: 'sent' });
-        const acceptedQuotations = await Quotation.countDocuments({ status: 'accepted' });
-        const rejectedQuotations = await Quotation.countDocuments({ status: 'rejected' });
+        const filter = { adminId: req.admin._id };
+        const totalQuotations = await Quotation.countDocuments(filter);
+        const draftQuotations = await Quotation.countDocuments({ ...filter, status: 'draft' });
+        const sentQuotations = await Quotation.countDocuments({ ...filter, status: 'sent' });
+        const acceptedQuotations = await Quotation.countDocuments({ ...filter, status: 'accepted' });
+        const rejectedQuotations = await Quotation.countDocuments({ ...filter, status: 'rejected' });
 
         // Calculate total value
-        const quotations = await Quotation.find();
+        const quotations = await Quotation.find(filter);
         const totalValue = quotations.reduce((sum, q) => sum + q.summary.grandTotal, 0);
 
         res.status(200).json({
@@ -457,7 +460,7 @@ export const getQuotationStats = async (req, res) => {
  */
 export const getShareableLink = async (req, res) => {
     try {
-        const quotation = await Quotation.findById(req.params.id);
+        const quotation = await Quotation.findOne({ _id: req.params.id, adminId: req.admin._id });
 
         if (!quotation) {
             return res.status(404).json({

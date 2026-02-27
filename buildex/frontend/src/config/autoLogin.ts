@@ -2,15 +2,11 @@
 // Since this is a single admin system, we can auto-login
 
 export const AUTO_LOGIN_CONFIG = {
-    enabled: true, // Set to false to disable auto-login
+    enabled: true,
     credentials: {
-        email: 'admin@buildex.com',
-        password: 'admin123'
+        email: 'admin@buildex.io',
+        password: 'Admin@123'
     },
-    // Auto-login will only work if:
-    // 1. User is not already logged in
-    // 2. No saved session exists
-    // 3. Backend is available
 };
 
 // How long to keep user logged in (in days)

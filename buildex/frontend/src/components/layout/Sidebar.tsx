@@ -9,8 +9,7 @@ import {
   Building2,
   Users,
   LogOut,
-  Pin,
-  PinOff,
+  PanelLeft,
   Bell,
   MessageSquare
 } from 'lucide-react';
@@ -95,13 +94,13 @@ export function Sidebar({ isOpen, onToggle, isHovered, setIsHovered }: SidebarPr
                 exit={{ opacity: 0, scale: 0.8 }}
                 onClick={onToggle}
                 className={cn(
-                  "p-2 rounded-lg transition-colors absolute right-4 top-1/2 -translate-y-1/2",
-                  "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800",
-                  isOpen ? "text-slate-900 dark:text-white" : "opacity-0 group-hover/header:opacity-100" // Hide when unpinned until hover header
+                  "p-2 rounded-lg transition-colors absolute right-3 top-1/2 -translate-y-1/2",
+                  "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+                  isOpen ? "text-slate-600 dark:text-slate-300" : "opacity-0 group-hover/header:opacity-100" // Hide when unpinned until hover header
                 )}
-                title={isOpen ? "Unpin Sidebar" : "Pin Sidebar"}
+                title={isOpen ? "Close Sidebar" : "Open Sidebar"}
               >
-                {isOpen ? <Pin className="w-4 h-4 fill-current" /> : <PinOff className="w-4 h-4" />}
+                <PanelLeft className="w-5 h-5" strokeWidth={2} />
               </motion.button>
             )}
           </AnimatePresence>

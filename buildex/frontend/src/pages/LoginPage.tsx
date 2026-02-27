@@ -1,259 +1,265 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Mail, Lock, Building2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Mail, Lock, Building2, ArrowRight, ShieldCheck, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
 import { AUTO_LOGIN_CONFIG } from '@/config/autoLogin';
+import { API_BASE_URL } from '@/services/api/core';
+
+type StepStatus = 'idle' | 'loading' | 'done' | 'error';
+
+interface Step {
+  label: string;
+  status: StepStatus;
+  detail?: string;
+}
+
+const INITIAL_STEPS: Step[] = [
+  { label: 'Connecting to server', status: 'idle' },
+  { label: 'Verifying credentials', status: 'idle' },
+  { label: 'Loading your workspace', status: 'idle' },
+];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
+  const [errorMsg, setErrorMsg] = useState('');
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
-  const { login, isAuthenticated } = useAuth();
+  const { isAuthenticated, setSession, login } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  // Auto-redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
+    if (isAuthenticated) navigate('/dashboard');
   }, [isAuthenticated, navigate]);
 
-  // Auto-login on page load (only once)
   useEffect(() => {
     const attemptAutoLogin = async () => {
-      // Only attempt if not authenticated, not already attempted, and user didn't manually logout
       const manualLogout = localStorage.getItem('manual_logout');
       if (!isAuthenticated && !autoLoginAttempted && AUTO_LOGIN_CONFIG.enabled && !manualLogout) {
         setAutoLoginAttempted(true);
-        setIsLoading(true);
-
-        try {
-          const success = await login(
-            AUTO_LOGIN_CONFIG.credentials.email,
-            AUTO_LOGIN_CONFIG.credentials.password
-          );
-
-          if (success) {
-            // Silent login - no toast needed
-            navigate('/dashboard');
-          }
-        } catch (error) {
-          // Silent fail - user can manually login
-          console.log('Auto-login failed, manual login required');
-        } finally {
-          setIsLoading(false);
-        }
+        const success = await login(AUTO_LOGIN_CONFIG.credentials.email, AUTO_LOGIN_CONFIG.credentials.password);
+        if (success) navigate('/dashboard');
       }
     };
-
-    // Attempt auto-login after a short delay
     const timer = setTimeout(attemptAutoLogin, 500);
     return () => clearTimeout(timer);
   }, [isAuthenticated, autoLoginAttempted, login, navigate]);
 
+  const updateStep = (index: number, status: StepStatus, detail?: string) => {
+    setSteps(prev => prev.map((s, i) => i === index ? { ...s, status, detail } : s));
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+    setSteps(INITIAL_STEPS);
     setIsLoading(true);
 
-    try {
-      const success = await login(email, password);
+    // Step 1 — Connecting
+    updateStep(0, 'loading');
+    await new Promise(r => setTimeout(r, 400));
 
-      if (success) {
-        localStorage.removeItem('manual_logout'); // Clear flag on successful manual login
-        toast({
-          title: "Access Granted",
-          description: "Welcome back to the command center.",
-          className: "bg-green-500 text-white border-green-600",
-        });
-        navigate('/dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "Invalid credentials. Please verify your access rights.",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "System Error",
-        description: "Connection failed. Please contact IT support.",
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
-    } finally {
+      updateStep(0, 'done', `${response.status} ${response.ok ? 'Connected' : 'Failed'}`);
+    } catch {
+      updateStep(0, 'error', 'Cannot reach server');
+      setErrorMsg('Cannot connect to server. Make sure backend is running.');
       setIsLoading(false);
+      return;
     }
+
+    // Step 2 — Verifying
+    updateStep(1, 'loading');
+    await new Promise(r => setTimeout(r, 300));
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      updateStep(1, 'error', data.error || 'Unauthorized');
+      setErrorMsg(data.error || 'Invalid credentials. Please try again.');
+      setIsLoading(false);
+      return;
+    }
+
+    updateStep(1, 'done', `Hello, ${data.admin?.name}`);
+
+    // Step 3 — Loading workspace
+    updateStep(2, 'loading');
+    await new Promise(r => setTimeout(r, 400));
+
+    const user = {
+      id: data.admin._id || data.admin.id,
+      name: data.admin.name,
+      email: data.admin.email,
+      role: data.admin.role,
+    };
+    setSession(user, data.token);
+    updateStep(2, 'done', 'Workspace ready');
+
+    await new Promise(r => setTimeout(r, 300));
+    setIsLoading(false);
+    navigate('/dashboard');
+  };
+
+  const stepIcon = (status: StepStatus) => {
+    if (status === 'loading') return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+    if (status === 'done') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    if (status === 'error') return <XCircle className="w-4 h-4 text-red-500" />;
+    return <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600" />;
   };
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden bg-black font-sans">
+    <div className="min-h-screen w-full flex bg-slate-50 dark:bg-slate-950">
+      {/* Left Side */}
+      <div className="hidden lg:flex flex-1 relative bg-slate-900 overflow-hidden">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-0 -left-4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-70" />
+          <div className="absolute top-0 -right-4 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-70" />
+          <div className="absolute -bottom-8 left-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl opacity-70" />
+        </div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
 
-      {/* 
-          FULL SCREEN VIDEO BACKGROUND 
-          Covers the entire page
-      */}
-      <div className="absolute inset-0 z-0">
-        <video
-          key="ai-video-player-fullscreen-bright"
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute top-0 left-0 w-full h-full object-cover opacity-100"
-          style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-        >
-          {/* User's Custom AI Video */}
-          <source src="/Angle_Animation_Video_Ready.mp4" type="video/mp4" />
+        <div className="relative z-10 flex flex-col justify-between p-12 w-full h-full">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <Building2 className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-2xl font-bold text-white tracking-tight">Buildex</span>
+          </motion.div>
 
-          {/* Fallback Stock Video */}
-          <source src="https://assets.mixkit.co/videos/preview/mixkit-time-lapse-of-a-construction-site-4158-large.mp4" type="video/mp4" />
-        </video>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="max-w-xl">
+            <h1 className="text-5xl font-bold text-white leading-[1.1] tracking-tight mb-6">
+              The modern standard for{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">construction management.</span>
+            </h1>
+            <p className="text-lg text-slate-400 leading-relaxed">
+              Streamline your workflow, manage quotations, and track invoices with enterprise-grade security and precision.
+            </p>
+          </motion.div>
 
-        {/* Subtle Gradient Overlay (Visible but minimal) */}
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
-        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Enterprise Security</span>
+            </div>
+            <div className="w-1 h-1 rounded-full bg-slate-700" />
+            <span>v2.0.0</span>
+          </motion.div>
+        </div>
       </div>
 
-      {/* Main Content Container (Overlay) */}
-      <div className="relative z-10 w-full h-full flex flex-col lg:flex-row min-h-screen p-6 lg:p-12">
+      {/* Right Side */}
+      <div className="flex-1 flex flex-col justify-center items-center p-6 lg:p-12 relative">
+        <div className="lg:hidden absolute top-8 left-8 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg">
+            <Building2 className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Buildex</span>
+        </div>
 
-        {/* LOGO (Absolute Top Left) */}
         <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="absolute top-8 left-8 flex items-center gap-2 text-white"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-[420px] space-y-8"
         >
-          <div className="p-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20">
-            <Building2 className="w-5 h-5" />
-          </div>
-          <span className="text-xl font-bold tracking-tight">Buildex</span>
-        </motion.div>
-
-
-        {/* LEFT SIDE: Branding Text - Visible on Mobile now */}
-        <div className="flex flex-1 flex-col justify-center lg:justify-center max-w-2xl mt-20 lg:mt-0 mb-10 lg:mb-0">
-          <div className="space-y-4 lg:space-y-6 text-white text-center lg:text-left">
-            <motion.h1
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.7, duration: 0.6 }}
-              className="text-4xl lg:text-7xl font-bold leading-tight lg:leading-none tracking-tight drop-shadow-2xl"
-            >
-              Building Visions <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">into Reality.</span>
-            </motion.h1>
-            <motion.p
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.6 }}
-              className="text-lg lg:text-xl text-gray-300 max-w-md mx-auto lg:mx-0 border-l-0 lg:border-l-4 border-cyan-500 pl-0 lg:pl-6 drop-shadow-lg"
-            >
-              From foundation to finish. The ultimate command center for modern construction management.
-            </motion.p>
+          <div className="space-y-2 text-center lg:text-left">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back</h2>
+            <p className="text-slate-500 dark:text-slate-400">Enter your credentials to access the dashboard.</p>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            className="hidden lg:flex items-center gap-6 mt-12 text-sm font-mono text-cyan-200/80"
-          >
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-              <span>LIVE_MONITORING</span>
-            </div>
-            <span>//</span>
-            <span>PROJECT_TRACKING</span>
-            <span>//</span>
-            <span>FINANCIAL_CONTROL</span>
-          </motion.div>
-        </div>
-
-        {/* RIGHT SIDE: Transparent Login Form */}
-        <div className="flex-1 flex items-center justify-center lg:justify-end">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="w-full max-w-md"
-          >
-            {/* Glass Card */}
-            <div className="bg-black/30 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl relative overflow-hidden group">
-
-              {/* Subtle sheen effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-
-              <div className="text-center mb-8 relative z-10">
-                <h2 className="text-2xl font-bold text-white mb-2">Admin Portal</h2>
-                <p className="text-gray-400 text-sm">Enter your credentials to access the system</p>
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Email address</label>
+                <div className="relative group">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  <Input
+                    type="email"
+                    placeholder="admin@buildex.io"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="pl-11 h-12 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all rounded-xl text-base"
+                  />
+                </div>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-5 relative z-10">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Email Address</Label>
-                  <div className="relative group/input">
-                    <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400 group-focus-within/input:text-cyan-400 transition-colors" />
-                    <Input
-                      type="email"
-                      placeholder="admin@buildex.com"
-                      className="pl-10 h-11 bg-black/40 border-white/10 text-white placeholder:text-gray-600 focus:border-white/40 focus:ring-white/10 hover:border-white/20 transition-all rounded-xl"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+                <div className="relative group">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="pl-11 h-12 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all rounded-xl text-base"
+                  />
                 </div>
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Password</Label>
-                  <div className="relative group/input">
-                    <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400 group-focus-within/input:text-white transition-colors" />
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      className="pl-10 h-11 bg-black/40 border-white/10 text-white placeholder:text-gray-600 focus:border-white/40 focus:ring-white/10 hover:border-white/20 transition-all rounded-xl"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
 
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-white text-black hover:bg-gray-200 font-bold text-base rounded-xl transition-all shadow-sm mt-4"
+            {/* Error from backend */}
+            <AnimatePresence>
+              {errorMsg && !isLoading && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-start gap-2.5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3"
                 >
-                  {isLoading ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-5 h-5 border-2 border-black border-t-transparent rounded-full"
-                    />
-                  ) : (
-                    "Authorize Access"
-                  )}
-                </Button>
-              </form>
+                  <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-400 font-medium">{errorMsg}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-              <div className="mt-6 text-center">
-                <p className="text-xs text-gray-500">
-                  Protected by reCAPTCHA and Enterprise Security.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-base transition-all shadow-lg shadow-blue-600/20 group disabled:opacity-70"
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Authenticating...</span>
+                </div>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  Sign In
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </span>
+              )}
+            </Button>
+          </form>
 
+          <div className="pt-2 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-blue-600 hover:text-blue-500 font-medium transition-colors">
+                Register here
+              </Link>
+            </p>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
 }
+

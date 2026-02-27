@@ -26,8 +26,12 @@ export const logApi = {
         if (params?.filter) query.set('filter', params.filter);
         if (params?.method) query.set('method', params.method);
         if (params?.status) query.set('status', params.status);
+        query.set('_t', Date.now().toString()); // Prevent browser caching
 
-        const res = await fetch(`${API_BASE_URL}/logs?${query.toString()}`, { headers: getHeaders() });
+        const res = await fetch(`${API_BASE_URL}/logs?${query.toString()}`, {
+            headers: getHeaders(),
+            cache: 'no-store'
+        });
         if (!res.ok) throw new Error('Failed to fetch logs');
         return res.json();
     },
@@ -36,7 +40,10 @@ export const logApi = {
      * Fetch summary stats (Total, Success, Errors, Avg Time)
      */
     getStats: async () => {
-        const res = await fetch(`${API_BASE_URL}/logs/stats`, { headers: getHeaders() });
+        const res = await fetch(`${API_BASE_URL}/logs/stats?_t=${Date.now()}`, {
+            headers: getHeaders(),
+            cache: 'no-store'
+        });
         if (!res.ok) throw new Error('Failed to fetch stats');
         return res.json();
     },
@@ -45,8 +52,11 @@ export const logApi = {
      * Fetch live logs since a given timestamp (for real-time polling)
      */
     getLiveLogs: async (since?: string) => {
-        const query = since ? `?since=${encodeURIComponent(since)}` : '';
-        const res = await fetch(`${API_BASE_URL}/logs/live${query}`, { headers: getHeaders() });
+        const query = since ? `?since=${encodeURIComponent(since)}&_t=${Date.now()}` : `?_t=${Date.now()}`;
+        const res = await fetch(`${API_BASE_URL}/logs/live${query}`, {
+            headers: getHeaders(),
+            cache: 'no-store'
+        });
         if (!res.ok) throw new Error('Failed to fetch live logs');
         return res.json();
     },

@@ -9,7 +9,6 @@ const clientSchema = new mongoose.Schema({
     phone: {
         type: String,
         required: [true, 'Phone number is required'],
-        unique: true,
         trim: true
     },
     email: {
@@ -20,6 +19,13 @@ const clientSchema = new mongoose.Schema({
     address: {
         type: String,
         trim: true
+    },
+
+    // Builder/Admin Reference for Multi-tenancy
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: [true, 'Admin (Builder) ID is required']
     },
 
     // Statistics
@@ -61,8 +67,8 @@ const clientSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for faster queries
-clientSchema.index({ phone: 1 });
+// Index for faster queries and uniqueness per builder
+clientSchema.index({ phone: 1, adminId: 1 }, { unique: true });
 clientSchema.index({ email: 1 });
 clientSchema.index({ name: 'text' });
 

@@ -9,8 +9,11 @@ import {
     getQuotationStats,
     getShareableLink
 } from '../controllers/quotationController.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.use(protect);
 
 router.post('/', createQuotation);
 router.get('/', getAllQuotations);

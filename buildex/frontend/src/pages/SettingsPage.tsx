@@ -134,7 +134,7 @@ export default function SettingsPage() {
                     <h2 className="text-2xl font-bold">{user?.name || 'Admin User'}</h2>
                     <p className="text-muted-foreground flex items-center gap-2">
                       <Shield className="w-3 h-3 text-emerald-500" />
-                      {user?.role || 'Administrator'}
+                      {user?.role === 'buildexadmin' ? 'Buildex Admin' : user?.role === 'admin' ? 'Admin' : 'Administrator'}
                     </p>
                   </div>
                 </div>
